@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
@@ -356,7 +357,14 @@ export function criarApp(store: Store, opcoes: OpcoesApp = {}): Hono {
   api.get("/kindle/formatos", async (c) => {
     const nome = c.req.query("nome");
     if (!nome) throw new EntradaInvalida("Informe ?nome=");
-    return c.json(await kindle.formatos(nome));
+    const pasta = c.req.query("pasta");
+    const ctx = c.req.query("ctx");
+    const mat = c.req.query("mat");
+    const local =
+      pasta && ctx && mat && ["docs", "notas", "planos"].includes(pasta)
+        ? { pasta: pasta as PastaOrigem, ctx, mat }
+        : undefined;
+    return c.json(await kindle.formatos(nome, local));
   });
   api.post(`${base}/kindle`, async (c) => {
     const corpo = envioKindleSchema.parse(await c.req.json());
@@ -369,6 +377,28 @@ export function criarApp(store: Store, opcoes: OpcoesApp = {}): Hono {
     );
     const { caminho: _caminho, ...publico } = resultado;
     return c.json(publico, 201);
+  });
+  // EPUB para o Send to Kindle: gerado em uma pasta fixa, servido para arrastar e revelado no Finder
+  api.post(`${base}/kindle/epub`, async (c) => {
+    const corpo = envioKindleSchema.omit({ formato: true }).parse(await c.req.json());
+    const r = await kindle.prepararEpub(corpo.pasta as PastaOrigem, c.req.param("ctx"), c.req.param("mat"), corpo.nome);
+    return c.json({ ...r, pasta: kindle.pastaEnvio }, 201);
+  });
+  api.get("/kindle/epub/:nome", async (c) => {
+    const caminho = await kindle.caminhoEpub(c.req.param("nome"));
+    const dados = await readFile(caminho);
+    return new Response(new Uint8Array(dados), {
+      headers: {
+        "content-type": "application/epub+zip",
+        "content-length": String(dados.length),
+        "content-disposition": dispositionAnexo(path.basename(caminho)),
+        "x-content-type-options": "nosniff",
+      },
+    });
+  });
+  api.post("/kindle/epub/:nome/mostrar", async (c) => {
+    await kindle.mostrarEpub(c.req.param("nome"));
+    return c.json({ ok: true });
   });
   api.post("/kindle/ejetar", async (c) => {
     await kindle.ejetar();
