@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Launcher do Organizador de Estudos.
-#   estudar          sobe o servidor (se preciso) e abre no Arc
+#   estudar          sobe o servidor (se preciso) e abre no navegador
 #   estudar stop     encerra o servidor
 #   estudar status   mostra se está rodando
 #
 # Se o código do servidor mudou desde que ele subiu, ele é reiniciado; se o front
-# mudou, é recompilado. ESTUDAR_NAO_ABRIR=1 sobe sem abrir o navegador.
+# mudou, é recompilado. ESTUDAR_NAO_ABRIR=1 sobe sem abrir o navegador;
+# ESTUDAR_NAVEGADOR="Arc" (nome do app no macOS) escolhe outro navegador que não o padrão.
 set -euo pipefail
 
 # Resolve a raiz do projeto mesmo quando chamado por symlink.
@@ -141,10 +142,14 @@ if ! rodando; then
 fi
 
 if [ -z "${ESTUDAR_NAO_ABRIR:-}" ]; then
-  if [ -d "/Applications/Arc.app" ]; then
-    open -a Arc "$URL"
-  else
-    open "$URL"
+  if [ "$(uname)" = "Darwin" ]; then
+    if [ -n "${ESTUDAR_NAVEGADOR:-}" ]; then
+      open -a "$ESTUDAR_NAVEGADOR" "$URL"
+    else
+      open "$URL"
+    fi
+  elif command -v xdg-open >/dev/null 2>&1; then
+    xdg-open "$URL" >/dev/null 2>&1 || true
   fi
 fi
 echo "Rodando em $URL"
