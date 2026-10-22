@@ -23,30 +23,39 @@ App web **local** para organizar estudos de faculdade, cursos e carreira: matér
 |---|---|
 | **Node.js 20+** e npm | rodar o app (testado com Node 22) |
 | **git** | a pasta de dados é um repositório git criado automaticamente |
-| Ferramentas de compilação (Xcode Command Line Tools no macOS; `build-essential` e `python3` no Linux) | o terminal embutido usa o módulo nativo `node-pty` |
+| Ferramentas de compilação (Xcode Command Line Tools no macOS; `build-essential` e `python3` no Linux) | o terminal embutido usa o módulo nativo `node-pty`; o `bin/preparar` avisa se faltarem |
 | [Claude Code](https://claude.com/claude-code) (opcional) | os comandos `/gerar-nota`, `/gerar-exercicios` etc. (ou o Gemini CLI, que também é suportado) |
 
 Testado no **macOS**. No Linux deve funcionar; no Windows, use o WSL.
 
 ## Como rodar
 
+Um comando prepara tudo (confere o Node, instala, conserta o que estiver quebrado, compila e testa):
+
 ```bash
 git clone <url-do-repositorio> organizador-de-estudos
 cd organizador-de-estudos
-npm install
-npm run build      # compila o front (uma vez, e de novo quando o código mudar)
-npm start          # sobe em http://localhost:4317
+bash bin/preparar
 ```
 
-Ou use o launcher, que instala, compila, sobe o servidor e abre o navegador:
+Depois, para usar:
 
 ```bash
-bin/estudar            # sobe e abre no navegador
+bin/estudar            # sobe o servidor e abre o navegador (http://localhost:4317)
 bin/estudar status     # mostra se está rodando
 bin/estudar stop       # encerra
 ```
 
-Para chamar de qualquer pasta: `ln -s "$PWD/bin/estudar" ~/.local/bin/estudar`. Para abrir em outro navegador no macOS: `ESTUDAR_NAVEGADOR="Arc" bin/estudar`.
+O `bin/preparar` é seguro para rodar de novo a qualquer momento e só reinstala se encontrar algo errado. Ele cuida de:
+
+- **Node**: exige 20+; se o seu for antigo, tenta instalar o 22 com `nvm` ou `fnm` só para esse comando e avisa se há mais de um Node no PATH;
+- **Conflitos de ambiente**: ignora `NODE_ENV=production`, `NODE_PATH`, `ignore-scripts` e `omit=dev` do seu npm (que quebram a instalação), sem alterar suas configurações; avisa de pacotes globais com o mesmo nome das ferramentas do projeto (não conflitam, o projeto usa as versões locais);
+- **Instalação corrompida**: confere se os binários nativos (rollup, esbuild, `node-pty`) e os tipos carregam de verdade e, se não, apaga `node_modules` e reinstala do zero (`npm ci`, com plano B sem o lock);
+- **Porta ocupada**, **front compilado** e um **teste de subida do servidor** numa pasta temporária, sem tocar nos seus dados.
+
+Opções: `--kindle` (instala as ferramentas opcionais do Kindle com o Homebrew), `--limpo` (força a reinstalação), `--abrir` (já abre o app no fim) e `--ajuda`. Também funciona como `npm run preparar`.
+
+Sem o script, o caminho manual é `npm install`, `npm run build` e `npm start`. Para chamar o launcher de qualquer pasta: `ln -s "$PWD/bin/estudar" ~/.local/bin/estudar`. Para abrir em outro navegador no macOS: `ESTUDAR_NAVEGADOR="Arc" bin/estudar`.
 
 ### Primeira execução
 
@@ -150,15 +159,7 @@ Para mudar os comandos, agentes ou o formato dos dados, edite `server/src/templa
 ## Solução de problemas
 
 - **"O servidor não reconheceu esta rota"**: o servidor está desatualizado; rode `bin/estudar` (ele reinicia sozinho).
-- **`Cannot find module @rollup/rollup-darwin-arm64`, `dlopen failed ... extends beyond end of file` ou `Could not find a declaration file for module '@xterm/xterm'`**: a instalação ficou corrompida (download cortado). O `npm install` não conserta, porque acha que está "up to date". Apague e reinstale do zero:
-
-  ```bash
-  rm -rf node_modules web/node_modules server/node_modules shared/node_modules
-  npm cache verify
-  npm ci
-  ```
-
-  Se persistir, rode `npm cache clean --force` antes do `npm ci`.
+- **`Cannot find module @rollup/rollup-darwin-arm64`, `dlopen failed ... extends beyond end of file` ou `Could not find a declaration file for module '@xterm/xterm'`**: a instalação ficou corrompida (download cortado). O `npm install` não conserta, porque acha que está "up to date". Rode `bash bin/preparar --limpo`, que apaga e reinstala do zero. O que ele fez fica em `.preparar.log`.
 - **O terminal embutido não abre**: reinstale com as ferramentas de compilação instaladas (`npm install`).
 - **O botão do Kindle diz "não encontrado"**: confira se o cabo é de dados e se o Kindle aparece como disco; use *Verificar*.
 - **Pop-up do Send to Kindle bloqueado**: libere pop-ups para `localhost:4317`.
