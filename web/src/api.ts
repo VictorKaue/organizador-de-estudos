@@ -25,11 +25,21 @@ export interface InfoFormatoKindle {
   descricao: string;
   disponivel: boolean;
   motivo?: string;
+  /** Melhor opção para este arquivo, entre as disponíveis. */
+  recomendado?: boolean;
+  /** Por que o formato é recomendado (também vem no formato indisponível que seria o ideal). */
+  sugestao?: string;
 }
 export interface EstadoKindle {
   conectado: boolean;
   volume: string;
   ferramentas: { k2pdfopt: boolean; pandoc: boolean; xelatex: boolean; calibre: boolean };
+}
+export interface EpubPreparado {
+  nome: string;
+  tamanho: number;
+  /** Pasta no disco onde o EPUB ficou. */
+  pasta: string;
 }
 export interface ResultadoKindle {
   nome: string;
@@ -188,6 +198,8 @@ const enviar = (metodo: string, corpo: unknown): RequestInit => ({
 const e = encodeURIComponent;
 const baseMateria = (ctx: string, mat: string) => `/api/contextos/${e(ctx)}/materias/${e(mat)}`;
 
+export const urlEpub = (nome: string) => `/api/kindle/epub/${e(nome)}`;
+
 export const urlDoc = (ctx: string, mat: string, nome: string) =>
   `${baseMateria(ctx, mat)}/docs/${e(nome)}`;
 
@@ -226,10 +238,16 @@ export const api = {
   },
 
   kindle: () => chamar<EstadoKindle>("/api/kindle"),
-  formatosKindle: (nome: string) =>
-    chamar<InfoFormatoKindle[]>(`/api/kindle/formatos?nome=${e(nome)}`),
+  formatosKindle: (ctx: string, mat: string, pasta: PastaKindle, nome: string) =>
+    chamar<InfoFormatoKindle[]>(
+      `/api/kindle/formatos?nome=${e(nome)}&pasta=${pasta}&ctx=${e(ctx)}&mat=${e(mat)}`,
+    ),
   enviarKindle: (ctx: string, mat: string, pasta: PastaKindle, nome: string, formato: FormatoKindle) =>
     chamar<ResultadoKindle>(`${baseMateria(ctx, mat)}/kindle`, enviar("POST", { pasta, nome, formato })),
+  prepararEpub: (ctx: string, mat: string, pasta: PastaKindle, nome: string) =>
+    chamar<EpubPreparado>(`${baseMateria(ctx, mat)}/kindle/epub`, enviar("POST", { pasta, nome })),
+  mostrarEpub: (nome: string) =>
+    chamar<{ ok: true }>(`/api/kindle/epub/${e(nome)}/mostrar`, { method: "POST" }),
   ejetarKindle: () => chamar<{ ok: true }>("/api/kindle/ejetar", { method: "POST" }),
 
   exercicios: (ctx: string, mat: string) =>

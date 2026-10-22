@@ -2294,3 +2294,28 @@ kbd {
 .arquivos li input[type="checkbox"] {
   margin-right: 0.5rem;
 }
+.kindle-grupo {
+  display: grid;
+  gap: 0.3rem;
+}
+.kindle-sugestoes {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.9em;
+}
+.kindle-epub {
+  display: grid;
+  gap: 0.4rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed var(--borda, currentColor);
+}
+.kindle-epub p {
+  margin: 0;
+}
+.kindle-epubs {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+.kindle-arrastavel {
+  cursor: grab;
+}

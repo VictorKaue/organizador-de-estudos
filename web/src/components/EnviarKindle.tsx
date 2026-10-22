@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, type EstadoKindle, type FormatoKindle, type InfoFormatoKindle, type PastaKindle } from "../api";
+import { api, urlEpub, type EpubPreparado, type EstadoKindle, type FormatoKindle, type InfoFormatoKindle, type PastaKindle } from "../api";
 import { useAsync } from "../useAsync";
 
 export interface ItemKindle {
@@ -8,6 +8,7 @@ export interface ItemKindle {
 }
 
 type Origem = "pdf" | "md" | "txt" | "outro";
+type Escolha = FormatoKindle | "auto";
 
 const ROTULO_ORIGEM: Record<Origem, string> = { pdf: "PDF", md: "Markdown", txt: "TXT", outro: "Outros" };
 
@@ -19,21 +20,7 @@ function origemDe(nome: string): Origem {
   return "outro";
 }
 
-function formatoSalvo(origem: Origem): FormatoKindle | undefined {
-  try {
-    return (localStorage.getItem(`kindle-formato-${origem}`) as FormatoKindle | null) ?? undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-function salvarFormato(origem: Origem, formato: FormatoKindle) {
-  try {
-    localStorage.setItem(`kindle-formato-${origem}`, formato);
-  } catch {
-    /* sem armazenamento: só não lembra */
-  }
-}
+const SEND_TO_KINDLE = "https://www.amazon.com.br/sendtokindle";
 
 type Situacao = { tipo: "enviando" } | { tipo: "ok"; texto: string } | { tipo: "erro"; texto: string };
 
@@ -43,14 +30,21 @@ interface Props {
   itens: ItemKindle[];
 }
 
-/** Escolhe o formato (por tipo de arquivo) e envia os itens ao Kindle conectado por cabo. */
+/** Melhor formato de um arquivo: o recomendado ou, sem recomendação, o primeiro que dá para gerar. */
+function sugerido(lista: InfoFormatoKindle[] | undefined): InfoFormatoKindle | undefined {
+  return lista?.find((f) => f.recomendado) ?? lista?.find((f) => f.disponivel);
+}
+
+/** Escolhe o formato (por tipo de arquivo, ou o sugerido para cada um) e envia ao Kindle conectado por cabo. */
 export function EnviarKindle({ ctx, mat, itens }: Props) {
   const [estado, setEstado] = useState<EstadoKindle>();
   const [erroEstado, setErroEstado] = useState<string>();
-  const [escolhas, setEscolhas] = useState<Partial<Record<Origem, FormatoKindle>>>({});
+  const [escolhas, setEscolhas] = useState<Partial<Record<Origem, Escolha>>>({});
   const [situacoes, setSituacoes] = useState<Record<string, Situacao>>({});
   const [enviando, setEnviando] = useState(false);
   const [ejetado, setEjetado] = useState(false);
+  const [epubs, setEpubs] = useState<Record<string, EpubPreparado | { erro: string }>>({});
+  const [preparando, setPreparando] = useState(false);
 
   const verificar = useCallback(() => {
     setErroEstado(undefined);
@@ -61,28 +55,29 @@ export function EnviarKindle({ ctx, mat, itens }: Props) {
   }, []);
   useEffect(verificar, [verificar]);
 
-  // Um exemplo de cada tipo basta para saber os formatos possíveis.
   const grupos = new Map<Origem, ItemKindle[]>();
   for (const item of itens) {
     const o = origemDe(item.nome);
     grupos.set(o, [...(grupos.get(o) ?? []), item]);
   }
-  const chaveExemplos = [...grupos.entries()].map(([o, l]) => `${o}:${l[0]?.nome}`).join("|");
-  const formatos = useAsync(
-    async () => {
-      const mapa: Partial<Record<Origem, InfoFormatoKindle[]>> = {};
-      for (const [o, lista] of grupos) mapa[o] = await api.formatosKindle(lista[0]!.nome);
-      return mapa;
-    },
-    [chaveExemplos],
-  );
 
-  const escolhido = (o: Origem): FormatoKindle | undefined => {
-    const lista = formatos.dados?.[o] ?? [];
-    const preferido = escolhas[o] ?? formatoSalvo(o);
-    const valido = lista.find((f) => f.id === preferido && f.disponivel);
-    return (valido ?? lista.find((f) => f.disponivel))?.id;
-  };
+  // Formatos de cada arquivo: a sugestão depende do conteúdo (texto × figuras, fórmulas).
+  const chaveItens = itens.map((i) => `${i.pasta}/${i.nome}`).join("|");
+  const formatos = useAsync(async () => {
+    const mapa: Record<string, InfoFormatoKindle[]> = {};
+    for (const i of itens) mapa[`${i.pasta}/${i.nome}`] = await api.formatosKindle(ctx, mat, i.pasta, i.nome);
+    return mapa;
+  }, [chaveItens, ctx, mat]);
+
+  const formatosDe = (i: ItemKindle) => formatos.dados?.[`${i.pasta}/${i.nome}`];
+
+  /** Formato efetivo de um item, ou undefined se a escolha manual não se aplica a ele. */
+  function formatoDe(item: ItemKindle): FormatoKindle | undefined {
+    const escolha = escolhas[origemDe(item.nome)] ?? "auto";
+    const lista = formatosDe(item);
+    if (escolha === "auto") return sugerido(lista)?.id;
+    return lista?.find((f) => f.id === escolha && f.disponivel)?.id;
+  }
 
   async function enviar() {
     setEnviando(true);
@@ -90,8 +85,11 @@ export function EnviarKindle({ ctx, mat, itens }: Props) {
     setSituacoes({});
     verificar();
     for (const item of itens) {
-      const formato = escolhido(origemDe(item.nome));
-      if (!formato) continue;
+      const formato = formatoDe(item);
+      if (!formato) {
+        setSituacoes((s) => ({ ...s, [item.nome]: { tipo: "erro", texto: "formato escolhido não se aplica a este arquivo" } }));
+        continue;
+      }
       setSituacoes((s) => ({ ...s, [item.nome]: { tipo: "enviando" } }));
       try {
         const r = await api.enviarKindle(ctx, mat, item.pasta, item.nome, formato);
@@ -106,6 +104,31 @@ export function EnviarKindle({ ctx, mat, itens }: Props) {
     }
     setEnviando(false);
     verificar();
+  }
+
+  const itensEpub = itens.filter((i) => formatosDe(i)?.some((f) => f.id === "epub" && f.disponivel));
+
+  /** Gera os EPUBs e abre o Send to Kindle numa janela pequena ao lado do app, para arrastar os arquivos. */
+  async function prepararEpubs() {
+    // Abre a janela já no clique (depois de um await o navegador a bloquearia como pop-up).
+    const largura = 560;
+    const esquerda = Math.max(0, (window.screenX ?? 0) + window.outerWidth - largura);
+    window.open(
+      SEND_TO_KINDLE,
+      "send-to-kindle",
+      `popup=yes,width=${largura},height=${Math.min(760, window.screen.availHeight - 80)},left=${esquerda},top=40`,
+    );
+    setPreparando(true);
+    setEpubs({});
+    for (const item of itensEpub) {
+      try {
+        const r = await api.prepararEpub(ctx, mat, item.pasta, item.nome);
+        setEpubs((e) => ({ ...e, [item.nome]: r }));
+      } catch (e) {
+        setEpubs((x) => ({ ...x, [item.nome]: { erro: e instanceof Error ? e.message : String(e) } }));
+      }
+    }
+    setPreparando(false);
   }
 
   async function ejetar() {
@@ -136,29 +159,49 @@ export function EnviarKindle({ ctx, mat, itens }: Props) {
       {itens.length === 0 && <p className="suave">Marque os arquivos que quer enviar.</p>}
 
       {[...grupos.entries()].map(([origem, lista]) => {
-        const opcoes = formatos.dados?.[origem] ?? [];
+        const escolha = escolhas[origem] ?? "auto";
+        const exemplo = formatosDe(lista[0]!) ?? [];
+        // Opções = união dos formatos dos arquivos do grupo (o do primeiro basta, são do mesmo tipo).
+        const atual = escolha === "auto" ? undefined : exemplo.find((f) => f.id === escolha);
         return (
-          <div className="kindle-linha" key={origem}>
-            <label>
-              {ROTULO_ORIGEM[origem]} ({lista.length}) →{" "}
-              <select
-                value={escolhido(origem) ?? ""}
-                disabled={enviando || opcoes.length === 0}
-                onChange={(ev) => {
-                  const f = ev.target.value as FormatoKindle;
-                  setEscolhas((c) => ({ ...c, [origem]: f }));
-                  salvarFormato(origem, f);
-                }}
-              >
-                {opcoes.map((f) => (
-                  <option key={f.id} value={f.id} disabled={!f.disponivel}>
-                    {f.rotulo}
-                    {f.disponivel ? "" : ` — ${f.motivo ?? "indisponível"}`}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <span className="suave">{opcoes.find((f) => f.id === escolhido(origem))?.descricao}</span>
+          <div className="kindle-grupo" key={origem}>
+            <div className="kindle-linha">
+              <label>
+                {ROTULO_ORIGEM[origem]} ({lista.length}) →{" "}
+                <select
+                  value={escolha}
+                  disabled={enviando || exemplo.length === 0}
+                  onChange={(ev) => setEscolhas((c) => ({ ...c, [origem]: ev.target.value as Escolha }))}
+                >
+                  <option value="auto">★ Recomendado para cada arquivo</option>
+                  {exemplo.map((f) => (
+                    <option key={f.id} value={f.id} disabled={!f.disponivel}>
+                      {f.rotulo}
+                      {f.disponivel ? "" : ` — ${f.motivo ?? "indisponível"}`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {atual && <span className="suave">{atual.descricao}</span>}
+            </div>
+            {escolha === "auto" && (
+              <ul className="kindle-sugestoes">
+                {lista.map((i) => {
+                  const f = formatosDe(i);
+                  const s = sugerido(f);
+                  const ideal = f?.find((x) => x.sugestao);
+                  return (
+                    <li key={i.nome}>
+                      <strong>{i.nome}</strong> → {s ? s.rotulo : "…"}
+                      {ideal?.sugestao && <span className="suave"> — {ideal.sugestao}</span>}
+                      {ideal && !ideal.disponivel && (
+                        <span className="suave"> (o ideal seria {ideal.rotulo}: {ideal.motivo ?? "indisponível"})</span>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
         );
       })}
@@ -185,6 +228,52 @@ export function EnviarKindle({ ctx, mat, itens }: Props) {
           </button>
         )}
         {ejetado && <span className="suave">Pode desconectar o cabo.</span>}
+      </div>
+
+      <div className="kindle-epub">
+        <strong>EPUB pelo Send to Kindle</strong>
+        <p className="suave">
+          O Kindle não lê EPUB copiado pelo cabo. Aqui o app gera o EPUB e abre o Send to Kindle da Amazon numa janela ao
+          lado; entre na sua conta lá e arraste o arquivo. A Amazon converte e entrega pelo Wi-Fi (o conteúdo passa pelos
+          servidores dela).
+        </p>
+        <div className="kindle-acoes">
+          <button className="secundario" onClick={() => void prepararEpubs()} disabled={preparando || itensEpub.length === 0}>
+            {preparando ? "Gerando EPUB…" : `Gerar EPUB e abrir Send to Kindle${itensEpub.length ? ` (${itensEpub.length})` : ""}`}
+          </button>
+        </div>
+        <ul className="kindle-epubs">
+          {Object.entries(epubs).map(([origem, e]) =>
+            "erro" in e ? (
+              <li key={origem} className="erro">
+                {origem}: {e.erro}
+              </li>
+            ) : (
+              <li key={origem}>
+                <a
+                  className="kindle-arrastavel"
+                  href={urlEpub(e.nome)}
+                  download={e.nome}
+                  draggable
+                  title="Arraste para a janela do Send to Kindle (ou use Mostrar no Finder)"
+                  onDragStart={(ev) =>
+                    ev.dataTransfer.setData("DownloadURL", `application/epub+zip:${e.nome}:${window.location.origin}${urlEpub(e.nome)}`)
+                  }
+                >
+                  {e.nome}
+                </a>{" "}
+                <button className="secundario" onClick={() => void api.mostrarEpub(e.nome).catch(() => undefined)}>
+                  Mostrar no Finder
+                </button>
+              </li>
+            ),
+          )}
+        </ul>
+        {Object.values(epubs).some((e) => !("erro" in e)) && (
+          <p className="suave">
+            Arquivos em <code>{Object.values(epubs).find((e): e is EpubPreparado => !("erro" in e))?.pasta}</code>.
+          </p>
+        )}
       </div>
     </div>
   );
