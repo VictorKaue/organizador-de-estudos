@@ -150,6 +150,15 @@ Para mudar os comandos, agentes ou o formato dos dados, edite `server/src/templa
 ## Solução de problemas
 
 - **"O servidor não reconheceu esta rota"**: o servidor está desatualizado; rode `bin/estudar` (ele reinicia sozinho).
+- **`Cannot find module @rollup/rollup-darwin-arm64`, `dlopen failed ... extends beyond end of file` ou `Could not find a declaration file for module '@xterm/xterm'`**: a instalação ficou corrompida (download cortado). O `npm install` não conserta, porque acha que está "up to date". Apague e reinstale do zero:
+
+  ```bash
+  rm -rf node_modules web/node_modules server/node_modules shared/node_modules
+  npm cache verify
+  npm ci
+  ```
+
+  Se persistir, rode `npm cache clean --force` antes do `npm ci`.
 - **O terminal embutido não abre**: reinstale com as ferramentas de compilação instaladas (`npm install`).
 - **O botão do Kindle diz "não encontrado"**: confira se o cabo é de dados e se o Kindle aparece como disco; use *Verificar*.
 - **Pop-up do Send to Kindle bloqueado**: libere pop-ups para `localhost:4317`.
