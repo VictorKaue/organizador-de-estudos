@@ -1,0 +1,222 @@
+/* Design system — primitivos reutilizáveis (Secao, GradeResponsiva, CampoCor, CartaoOpcao, PreviaTema).
+   Só usa os tokens do tema (--superficie, --borda, --destaque…), então acompanha qualquer tema. */
+
+:root {
+  --ui-esp-1: 0.25rem;
+  --ui-esp-2: 0.5rem;
+  --ui-esp-3: 0.75rem;
+  --ui-esp-4: clamp(0.9rem, 0.6rem + 1vw, 1.25rem);
+  --ui-esp-5: clamp(1.25rem, 0.8rem + 1.6vw, 2rem);
+}
+
+/* Secao */
+.ui-secao-topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--ui-esp-2) var(--ui-esp-4);
+}
+.ui-secao-topo h2 {
+  margin: 0;
+}
+.ui-secao-topo p {
+  margin: var(--ui-esp-1) 0 0;
+  max-width: 62ch;
+}
+.ui-secao-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-esp-2);
+}
+
+/* GradeResponsiva */
+.ui-grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--ui-min, 11rem)), 1fr));
+  gap: var(--ui-esp-3);
+}
+
+/* PreviaTema: miniatura 16:10 desenhada só com as cores recebidas */
+.ui-previa {
+  display: grid;
+  grid-template-columns: 26% 1fr;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  background: var(--p-bg);
+  border: 1px solid var(--p-borda);
+  border-radius: var(--raio-sm);
+}
+.ui-previa i {
+  display: block;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--p-suave);
+  opacity: 0.55;
+}
+.ui-previa-lateral {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 7px;
+  background: var(--p-lat);
+  border-right: 1px solid var(--p-borda);
+}
+.ui-previa-lateral i:first-child {
+  background: var(--p-pri);
+  opacity: 1;
+}
+.ui-previa-corpo {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px;
+}
+.ui-previa-titulo {
+  display: block;
+  width: 55%;
+  height: 7px;
+  border-radius: 4px;
+  background: var(--p-txt);
+}
+.ui-previa-cartao {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 7px;
+  background: var(--p-sup);
+  border: 1px solid var(--p-borda);
+  border-radius: 6px;
+}
+.ui-previa-cartao i:last-child {
+  width: 70%;
+}
+.ui-previa-pontos {
+  display: flex;
+  gap: 5px;
+  margin-top: auto;
+}
+.ui-previa-pontos span {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+}
+.ui-previa-pontos .pri {
+  width: 30px;
+  border-radius: 999px;
+  background: var(--p-pri);
+}
+.ui-previa-pontos .sec {
+  background: var(--p-sec);
+}
+.ui-previa-pontos .ace {
+  background: var(--p-ace);
+}
+.ui-previa-pontos .inf {
+  background: var(--p-inf);
+}
+
+/* CartaoOpcao */
+.ui-opcao {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  box-shadow: var(--sombra);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.ui-opcao:hover {
+  border-color: color-mix(in srgb, var(--destaque) 55%, var(--borda));
+}
+.ui-opcao.selecionada {
+  border-color: var(--destaque);
+  box-shadow:
+    0 0 0 1px var(--destaque),
+    var(--sombra);
+}
+.ui-opcao:has(input:focus-visible) {
+  outline: 2px solid var(--destaque);
+  outline-offset: 2px;
+}
+.ui-opcao-alvo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-esp-2);
+  flex: 1;
+  padding: var(--ui-esp-3);
+  cursor: pointer;
+}
+.ui-opcao-texto {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.ui-opcao-texto strong {
+  overflow-wrap: anywhere;
+}
+.ui-opcao-marca {
+  position: absolute;
+  top: calc(var(--ui-esp-3) + 6px);
+  right: calc(var(--ui-esp-3) + 6px);
+  display: none;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: var(--destaque);
+  color: var(--destaque-texto);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.ui-opcao.selecionada .ui-opcao-marca {
+  display: grid;
+}
+.ui-opcao-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-esp-2);
+  padding: 0 var(--ui-esp-3) var(--ui-esp-3);
+}
+
+/* CampoCor */
+.ui-campo-cor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-esp-1);
+  min-width: 0;
+}
+.ui-campo-cor-rotulo {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+.ui-campo-cor-rotulo small {
+  font-weight: 400;
+}
+.ui-campo-cor-controles {
+  display: flex;
+  gap: var(--ui-esp-2);
+  align-items: center;
+}
+input[type="color"].ui-amostra {
+  flex: none;
+  width: 2.75rem;
+  min-height: 2.5rem;
+  padding: 3px;
+  cursor: pointer;
+}
+input.ui-hex {
+  flex: 1;
+  min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-transform: lowercase;
+}
+input.ui-hex[aria-invalid="true"] {
+  border-color: var(--erro);
+}

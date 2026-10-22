@@ -1,0 +1,70 @@
+/* Página Configurações: só composição; os primitivos ficam em components/ui/ui.css */
+
+.cfg-previa-dupla {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+.cfg-previa-dupla .ui-previa {
+  aspect-ratio: 4 / 5;
+}
+
+.cfg-identidade {
+  align-items: flex-start;
+}
+.cfg-identidade label {
+  flex: 1 1 14rem;
+}
+.cfg-identidade input,
+.cfg-identidade select {
+  width: 100%;
+}
+
+.cfg-base p {
+  margin: 0;
+}
+.cfg-base .segmentos {
+  max-width: 22rem;
+  margin-top: var(--ui-esp-2);
+}
+
+.cfg-grupo {
+  min-width: 0;
+  margin: 0;
+  padding: var(--ui-esp-3) var(--ui-esp-4) var(--ui-esp-4);
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+}
+.cfg-grupo legend {
+  padding: 0 var(--ui-esp-2);
+  font-family: var(--fonte-titulo);
+  font-weight: 600;
+}
+
+.cfg-avisos {
+  padding: var(--ui-esp-3) var(--ui-esp-4);
+  border: 1px solid var(--erro);
+  border-radius: var(--raio);
+  background: color-mix(in srgb, var(--erro) 10%, var(--superficie));
+}
+.cfg-avisos ul {
+  margin: var(--ui-esp-1) 0 0;
+  padding-left: 1.2rem;
+}
+
+.cfg-rodape {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-esp-2);
+  position: sticky;
+  bottom: 0;
+  padding: var(--ui-esp-3) 0;
+  background: linear-gradient(transparent, var(--bg) 40%);
+}
+
+@media (max-width: 520px) {
+  .cfg-rodape button {
+    flex: 1 1 8rem;
+  }
+}

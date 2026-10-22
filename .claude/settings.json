@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node dados/.claude/scripts/*)",
+      "Bash(wc *)",
+      "Bash(date *)",
+      "Bash(pwd)"
+    ]
+  }
+}

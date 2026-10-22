@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.estudar.pid
+.estudar.log
+.estudar.log.build
+.DS_Store
+*.tsbuildinfo
+.env*
+.claude/settings.local.json
+# A pasta de dados tem repositório git próprio (ver server/src/fs-store.ts)
+dados/

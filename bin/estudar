@@ -1,0 +1,150 @@
+#!/usr/bin/env bash
+# Launcher do Organizador de Estudos.
+#   estudar          sobe o servidor (se preciso) e abre no Arc
+#   estudar stop     encerra o servidor
+#   estudar status   mostra se está rodando
+#
+# Se o código do servidor mudou desde que ele subiu, ele é reiniciado; se o front
+# mudou, é recompilado. ESTUDAR_NAO_ABRIR=1 sobe sem abrir o navegador.
+set -euo pipefail
+
+# Resolve a raiz do projeto mesmo quando chamado por symlink.
+origem="${BASH_SOURCE[0]}"
+while [ -L "$origem" ]; do
+  dir="$(cd -P "$(dirname "$origem")" && pwd)"
+  origem="$(readlink "$origem")"
+  [[ "$origem" != /* ]] && origem="$dir/$origem"
+done
+RAIZ="$(cd -P "$(dirname "$origem")/.." && pwd)"
+
+PORTA="${ESTUDOS_PORTA:-4317}"
+URL="http://localhost:${PORTA}"
+PID_FILE="$RAIZ/.estudar.pid"
+LOG_FILE="$RAIZ/.estudar.log"
+
+rodando() {
+  curl -fsS --max-time 1 "$URL/api/health" 2>/dev/null | grep -q '"ok":true'
+}
+
+# Imprime o pid e todos os descendentes (npm -> tsx -> node).
+arvore() {
+  local pid="$1" filho
+  for filho in $(pgrep -P "$pid" 2>/dev/null || true); do
+    arvore "$filho"
+  done
+  echo "$pid"
+}
+
+aguardar_parada() {
+  for _ in $(seq 1 50); do
+    rodando || return 0
+    sleep 0.1
+  done
+  return 1
+}
+
+parar() {
+  local pids=""
+  if [ -f "$PID_FILE" ]; then
+    local pid
+    pid="$(cat "$PID_FILE")"
+    if kill -0 "$pid" 2>/dev/null; then
+      pids="$(arvore "$pid")"
+    fi
+    rm -f "$PID_FILE"
+  fi
+  # Servidor nosso na porta, mas sem pid file válido (ex.: iniciado à mão).
+  if rodando; then
+    pids="$pids $(lsof -ti "tcp:${PORTA}" -sTCP:LISTEN 2>/dev/null || true)"
+  fi
+  if [ -n "${pids// /}" ]; then
+    # shellcheck disable=SC2086
+    kill $pids 2>/dev/null || true
+    if aguardar_parada; then
+      echo "Servidor encerrado."
+    else
+      # shellcheck disable=SC2086
+      kill -9 $pids 2>/dev/null || true
+      echo "Servidor encerrado (forçado)."
+    fi
+  else
+    echo "Nenhum servidor em execução."
+  fi
+}
+
+# Há arquivos do servidor mais novos que o início do servidor?
+servidor_desatualizado() {
+  [ -f "$PID_FILE" ] || return 1
+  [ -n "$(find "$RAIZ/server/src" "$RAIZ/shared/src" "$RAIZ/package.json" -type f -newer "$PID_FILE" -print -quit 2>/dev/null)" ]
+}
+
+# O build do front está ausente ou mais velho que o código-fonte?
+front_desatualizado() {
+  local index="$RAIZ/web/dist/index.html"
+  [ -f "$index" ] || return 0
+  [ -n "$(find "$RAIZ/web/src" "$RAIZ/web/index.html" "$RAIZ/shared/src" -type f -newer "$index" -print -quit 2>/dev/null)" ]
+}
+
+case "${1:-start}" in
+  stop)
+    parar
+    exit 0
+    ;;
+  status)
+    if rodando; then
+      if servidor_desatualizado; then
+        echo "Rodando em $URL (DESATUALIZADO: rode 'estudar' para reiniciar)"
+      else
+        echo "Rodando em $URL"
+      fi
+    else
+      echo "Parado"
+    fi
+    exit 0
+    ;;
+  start) ;;
+  *)
+    echo "Uso: estudar [start|stop|status]" >&2
+    exit 2
+    ;;
+esac
+
+cd "$RAIZ"
+
+if rodando && servidor_desatualizado; then
+  echo "O código mudou desde que o servidor subiu; reiniciando…"
+  parar
+fi
+
+if front_desatualizado; then
+  [ -d node_modules ] || npm install --silent
+  echo "Compilando o front…"
+  if ! npm run build --silent >"$LOG_FILE.build" 2>&1; then
+    cat "$LOG_FILE.build" >&2
+    echo "Falha ao compilar o front." >&2
+    exit 1
+  fi
+fi
+
+if ! rodando; then
+  [ -d node_modules ] || npm install --silent
+  nohup npm run start --silent >"$LOG_FILE" 2>&1 &
+  echo $! >"$PID_FILE"
+  for _ in $(seq 1 50); do
+    rodando && break
+    sleep 0.2
+  done
+  if ! rodando; then
+    echo "O servidor não subiu. Veja o log: $LOG_FILE" >&2
+    exit 1
+  fi
+fi
+
+if [ -z "${ESTUDAR_NAO_ABRIR:-}" ]; then
+  if [ -d "/Applications/Arc.app" ]; then
+    open -a Arc "$URL"
+  else
+    open "$URL"
+  fi
+fi
+echo "Rodando em $URL"
