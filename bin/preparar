@@ -1,0 +1,375 @@
+#!/usr/bin/env bash
+# Prepara o ambiente do Organizador de Estudos. Rode uma vez (e de novo se algo quebrar):
+#
+#   bash bin/preparar            verifica, conserta o que precisar, compila e testa o app
+#   bash bin/preparar --kindle   também instala as ferramentas opcionais do envio ao Kindle (macOS/Homebrew)
+#   bash bin/preparar --limpo    apaga node_modules e reinstala do zero
+#   bash bin/preparar --abrir    ao final, sobe o app e abre o navegador
+#
+# O que ele cuida: versão do Node (tenta nvm/fnm), ferramentas de compilação, variáveis de ambiente e
+# configurações do npm que quebram a instalação (NODE_ENV=production, ignore-scripts, omit=dev, NODE_PATH),
+# pacotes globais com o mesmo nome das ferramentas do projeto, node_modules corrompido ou incompleto
+# (binários nativos cortados), conflito entre package-lock e a sua plataforma, porta ocupada, e confirma
+# que o servidor sobe numa pasta temporária (sem tocar nos seus dados).
+set -uo pipefail
+
+# Resolve a raiz do projeto mesmo quando chamado por symlink.
+origem="${BASH_SOURCE[0]}"
+while [ -L "$origem" ]; do
+  dir="$(cd -P "$(dirname "$origem")" && pwd)"
+  origem="$(readlink "$origem")"
+  [[ "$origem" != /* ]] && origem="$dir/$origem"
+done
+RAIZ="$(cd -P "$(dirname "$origem")/.." && pwd)"
+cd "$RAIZ" || exit 1
+
+LOG="$RAIZ/.preparar.log"
+: >"$LOG"
+MIN_NODE=20
+ALVO_NODE=22
+PORTA_PADRAO="${ESTUDOS_PORTA:-4317}"
+PASTAS_NPM="node_modules web/node_modules server/node_modules shared/node_modules"
+
+KINDLE=0
+LIMPO=0
+ABRIR=0
+for arg in "$@"; do
+  case "$arg" in
+    --kindle) KINDLE=1 ;;
+    --limpo) LIMPO=1 ;;
+    --abrir) ABRIR=1 ;;
+    -h | --ajuda | --help)
+      sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'
+      exit 0
+      ;;
+    *)
+      echo "Opção desconhecida: $arg (use --ajuda)" >&2
+      exit 2
+      ;;
+  esac
+done
+
+if [ -t 1 ]; then
+  VERDE=$'\033[32m'; AMARELO=$'\033[33m'; VERMELHO=$'\033[31m'; AZUL=$'\033[34m'; NEGRITO=$'\033[1m'; FIM=$'\033[0m'
+else
+  VERDE=""; AMARELO=""; VERMELHO=""; AZUL=""; NEGRITO=""; FIM=""
+fi
+AVISOS=0
+passo() { printf '\n%s==> %s%s\n' "$NEGRITO$AZUL" "$1" "$FIM"; }
+ok() { printf '  %s✓%s %s\n' "$VERDE" "$FIM" "$1"; }
+aviso() { AVISOS=$((AVISOS + 1)); printf '  %s!%s %s\n' "$AMARELO" "$FIM" "$1"; }
+falha() { printf '  %s✗%s %s\n' "$VERMELHO" "$FIM" "$1" >&2; }
+info() { printf '    %s\n' "$1"; }
+morrer() {
+  falha "$1"
+  shift
+  for linha in "$@"; do info "$linha" >&2; done
+  printf '\n  Detalhes técnicos em: %s\n' "$LOG" >&2
+  exit 1
+}
+
+# Roda um comando guardando a saída no log. Mostra as últimas linhas se falhar.
+rodar() {
+  printf '\n$ %s\n' "$*" >>"$LOG"
+  "$@" >>"$LOG" 2>&1
+}
+
+SO="$(uname -s)"
+case "$SO" in
+  Darwin | Linux) ;;
+  *) morrer "Sistema não suportado: $SO." "No Windows, use o WSL (Ubuntu) e rode este comando de dentro dele." ;;
+esac
+
+# ---------------------------------------------------------------- Node
+versao_maior() { node -v 2>/dev/null | sed 's/^v//; s/\..*//'; }
+
+garantir_node() {
+  passo "Node.js"
+  local maior
+  maior="$(versao_maior)"
+  if [ -n "$maior" ] && [ "$maior" -ge "$MIN_NODE" ]; then
+    ok "Node $(node -v) em $(command -v node)"
+  else
+    [ -n "$maior" ] && aviso "Node $(node -v) é antigo (precisa do $MIN_NODE ou mais novo)." || aviso "Node não encontrado no PATH."
+    # Gerenciadores de versão: tentam instalar e usar o Node 22 só neste comando.
+    if [ -s "${NVM_DIR:-$HOME/.nvm}/nvm.sh" ]; then
+      info "Tentando com o nvm…"
+      set +u
+      # shellcheck disable=SC1091
+      . "${NVM_DIR:-$HOME/.nvm}/nvm.sh"
+      nvm install "$ALVO_NODE" >>"$LOG" 2>&1 && nvm use "$ALVO_NODE" >>"$LOG" 2>&1
+      set -u
+    elif command -v fnm >/dev/null 2>&1; then
+      info "Tentando com o fnm…"
+      fnm install "$ALVO_NODE" >>"$LOG" 2>&1 && eval "$(fnm env --shell bash)" && fnm use "$ALVO_NODE" >>"$LOG" 2>&1
+    fi
+    maior="$(versao_maior)"
+    if [ -z "$maior" ] || [ "$maior" -lt "$MIN_NODE" ]; then
+      if [ "$SO" = "Darwin" ]; then
+        morrer "Precisa do Node $MIN_NODE ou mais novo." \
+          "Instale com:  brew install node@$ALVO_NODE   (ou baixe em https://nodejs.org)" \
+          "Depois abra um terminal novo e rode este comando de novo."
+      else
+        morrer "Precisa do Node $MIN_NODE ou mais novo." \
+          "Instale com o nvm: https://github.com/nvm-sh/nvm  e rode  nvm install $ALVO_NODE" \
+          "Depois abra um terminal novo e rode este comando de novo."
+      fi
+    fi
+    ok "Usando Node $(node -v) (via gerenciador de versões, só neste comando)"
+  fi
+
+  # Mais de um Node no PATH é a origem clássica de "funciona num terminal e não no outro".
+  local quantos
+  quantos="$(type -a node 2>/dev/null | awk '{print $NF}' | sort -u | wc -l | tr -d ' ')"
+  if [ "${quantos:-1}" -gt 1 ]; then
+    aviso "Há $quantos instalações de Node no PATH; usando a primeira: $(command -v node)"
+    type -a node 2>/dev/null | awk '{print "      " $NF}' | sort -u >&2
+  fi
+
+  command -v npm >/dev/null 2>&1 || morrer "npm não encontrado." "Ele vem junto com o Node; reinstale o Node."
+  ok "npm $(npm -v)"
+}
+
+# ---------------------------------------------------------------- ferramentas básicas
+checar_ferramentas() {
+  passo "Ferramentas do sistema"
+  command -v git >/dev/null 2>&1 && ok "git $(git --version | awk '{print $3}')" || aviso "git não encontrado: a pasta de dados não terá repositório (instale o git e rode de novo)."
+  if [ "$SO" = "Darwin" ]; then
+    if xcode-select -p >/dev/null 2>&1; then
+      ok "Xcode Command Line Tools"
+    else
+      aviso "Sem as Xcode Command Line Tools: o terminal embutido pode não compilar. Instale com: xcode-select --install"
+    fi
+  else
+    local faltam=()
+    for c in make g++ python3; do command -v "$c" >/dev/null 2>&1 || faltam+=("$c"); done
+    if [ "${#faltam[@]}" -gt 0 ]; then
+      aviso "Faltam ferramentas de compilação (${faltam[*]}); o terminal embutido pode não instalar. No Ubuntu/Debian: sudo apt install build-essential python3"
+    else
+      ok "make, g++ e python3"
+    fi
+  fi
+}
+
+# ---------------------------------------------------------------- ambiente e npm
+neutralizar_ambiente() {
+  passo "Ambiente e configuração do npm"
+  local mudou=()
+  # Variáveis que quebram a instalação: NODE_ENV=production pula as dependências de desenvolvimento
+  # (typescript, vite, tsx) e NODE_PATH faz o Node achar módulos globais antes dos locais.
+  for v in NODE_ENV NODE_PATH; do
+    if [ -n "${!v:-}" ]; then
+      mudou+=("$v=${!v}")
+      unset "$v"
+    fi
+  done
+  # Configurações do npm (do ~/.npmrc ou do ambiente) que quebram a instalação. Lemos antes de sobrescrever.
+  [ "$(npm config get ignore-scripts 2>/dev/null)" = "true" ] && mudou+=("npm ignore-scripts=true (o node-pty não compilaria)")
+  local omit
+  omit="$(npm config get omit 2>/dev/null)"
+  case "$omit" in *dev*) mudou+=("npm omit=$omit (pularia typescript, vite e tsx)") ;; esac
+  [ "$(npm config get production 2>/dev/null)" = "true" ] && mudou+=("npm production=true")
+  # Valem só para este comando: o ~/.npmrc não é alterado.
+  export npm_config_production=false npm_config_omit="" npm_config_include="dev" npm_config_ignore_scripts=false
+  export npm_config_global=false npm_config_audit=false npm_config_fund=false npm_config_update_notifier=false
+  export npm_config_loglevel=error
+  ok "Instalação forçada a incluir devDependencies e rodar scripts"
+  if [ "${#mudou[@]}" -gt 0 ]; then
+    aviso "Configurações do seu ambiente que atrapalhariam: $(IFS=";"; echo "${mudou[*]}" | sed "s/;/; /g")"
+    info "Foram ignoradas só neste comando; suas configurações não foram alteradas."
+  fi
+
+  # Pacotes globais com o mesmo nome das ferramentas do projeto não conflitam, porque tudo roda pelos
+  # binários locais (node_modules/.bin); só avisamos para não parecer um mistério em outro contexto.
+  local globais
+  globais="$(npm ls -g --depth=0 --parseable 2>/dev/null | tail -n +2 | sed 's#.*/node_modules/##' | grep -E '^(typescript|tsx|vite|vitest|concurrently|esbuild|rollup|ts-node)$' | tr '\n' ' ')"
+  if [ -n "${globais// /}" ]; then
+    aviso "Pacotes globais com o mesmo nome de ferramentas do projeto: ${globais}"
+    info "Não há conflito: o projeto usa as versões locais. Evite chamar 'tsc', 'vite' ou 'tsx' direto no terminal; use 'npm run ...'."
+  else
+    ok "Nenhum pacote global conflitante"
+  fi
+}
+
+# Confere se o que está em node_modules funciona de verdade (não só se existe).
+PROBLEMAS=()
+verificar_instalacao() {
+  PROBLEMAS=()
+  [ -d node_modules ] || { PROBLEMAS+=("node_modules não existe"); return 1; }
+  if [ -f node_modules/rollup/dist/native.js ]; then
+    node -e "require('./node_modules/rollup/dist/native.js')" >>"$LOG" 2>&1 || PROBLEMAS+=("binário nativo do rollup ausente ou cortado")
+  else
+    PROBLEMAS+=("rollup não instalado")
+  fi
+  ./node_modules/.bin/esbuild --version >>"$LOG" 2>&1 || PROBLEMAS+=("binário do esbuild ausente ou cortado")
+  node -e "require(require.resolve('node-pty', { paths: ['server', '.'] }))" >>"$LOG" 2>&1 || PROBLEMAS+=("node-pty (terminal embutido) não carrega")
+  [ -f node_modules/@xterm/xterm/typings/xterm.d.ts ] || PROBLEMAS+=("tipos do @xterm/xterm ausentes")
+  ./node_modules/.bin/tsc --version >>"$LOG" 2>&1 || PROBLEMAS+=("typescript não instalado")
+  ./node_modules/.bin/tsx --version >>"$LOG" 2>&1 || PROBLEMAS+=("tsx não instalado")
+  [ "${#PROBLEMAS[@]}" -eq 0 ]
+}
+
+instalar_do_zero() {
+  info "Apagando node_modules e limpando o cache do npm…"
+  # shellcheck disable=SC2086
+  rm -rf $PASTAS_NPM
+  rodar npm cache verify || true
+  info "Instalando (npm ci, pode levar alguns minutos)…"
+  if rodar npm ci; then
+    return 0
+  fi
+  aviso "npm ci falhou (lock fora de sincronia ou sem os binários da sua plataforma). Tentando sem o package-lock…"
+  # shellcheck disable=SC2086
+  rm -rf $PASTAS_NPM
+  rodar npm cache clean --force || true
+  rodar npm install --no-package-lock
+}
+
+instalar_dependencias() {
+  passo "Dependências"
+  if [ "$LIMPO" -eq 0 ] && verificar_instalacao; then
+    ok "node_modules íntegro (binários nativos e tipos conferidos)"
+    return
+  fi
+  if [ "$LIMPO" -eq 1 ]; then
+    info "Reinstalação pedida (--limpo)."
+  elif [ -d node_modules ]; then
+    aviso "Instalação com problemas: $(IFS=";"; echo "${PROBLEMAS[*]}" | sed "s/;/; /g")"
+    info "O 'npm install' não conserta isso (ele acha que está tudo certo); refazendo do zero."
+  else
+    info "Primeira instalação."
+  fi
+  instalar_do_zero || true
+  if verificar_instalacao; then
+    ok "Dependências instaladas e conferidas"
+    return
+  fi
+  morrer "A instalação continua com problemas: $(IFS=";"; echo "${PROBLEMAS[*]}" | sed "s/;/; /g")" \
+    "Tente:  npm cache clean --force && bash bin/preparar --limpo" \
+    "Se persistir, mande o arquivo $LOG para quem mantém o projeto."
+}
+
+# ---------------------------------------------------------------- compilar e testar
+compilar() {
+  passo "Compilando o front"
+  if rodar npm run build; then
+    ok "web/dist pronto"
+  else
+    tail -n 15 "$LOG" >&2
+    morrer "O front não compilou." "Rode  bash bin/preparar --limpo  para reinstalar tudo do zero."
+  fi
+}
+
+porta_livre() {
+  node -e "const s=require('net').createServer().listen(0,'127.0.0.1',()=>{console.log(s.address().port);s.close()})"
+}
+
+teste_rapido() {
+  passo "Teste rápido do servidor (em pasta temporária)"
+  local porta tmp pid=""
+  porta="$(porta_livre)"
+  tmp="$(mktemp -d)"
+  ( cd server && DADOS_DIR="$tmp/dados" ESTUDOS_PORTA="$porta" exec ../node_modules/.bin/tsx src/index.ts ) >"$tmp/servidor.log" 2>&1 &
+  pid=$!
+  local subiu=0
+  for _ in $(seq 1 60); do
+    if curl -fsS --max-time 1 "http://127.0.0.1:$porta/api/health" 2>/dev/null | grep -q '"ok":true'; then
+      subiu=1
+      break
+    fi
+    kill -0 "$pid" 2>/dev/null || break
+    sleep 0.25
+  done
+  local criou=0
+  [ -f "$tmp/dados/config.json" ] && [ -f "$tmp/dados/.claude/commands/gerar-nota.md" ] && criou=1
+  pkill -P "$pid" 2>/dev/null || true
+  kill "$pid" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
+  if [ "$subiu" -eq 1 ] && [ "$criou" -eq 1 ]; then
+    ok "O servidor sobe e cria a pasta de dados com os comandos da IA"
+  else
+    cat "$tmp/servidor.log" >>"$LOG"
+    tail -n 12 "$tmp/servidor.log" >&2
+    rm -rf "$tmp"
+    morrer "O servidor não subiu corretamente." "Veja o erro acima e o log completo."
+  fi
+  rm -rf "$tmp"
+}
+
+checar_porta() {
+  local pid
+  pid="$(lsof -ti "tcp:${PORTA_PADRAO}" -sTCP:LISTEN 2>/dev/null | head -n1 || true)"
+  if [ -n "$pid" ]; then
+    if curl -fsS --max-time 1 "http://127.0.0.1:${PORTA_PADRAO}/api/health" 2>/dev/null | grep -q '"ok":true'; then
+      ok "Porta ${PORTA_PADRAO}: já há um Organizador de Estudos rodando (use 'bin/estudar' para reiniciá-lo)"
+    else
+      aviso "A porta ${PORTA_PADRAO} está ocupada por outro programa (pid $pid). Use outra: ESTUDOS_PORTA=4318 bin/estudar"
+    fi
+  else
+    ok "Porta ${PORTA_PADRAO} livre"
+  fi
+}
+
+# ---------------------------------------------------------------- Kindle (opcional)
+ferramentas_kindle() {
+  passo "Ferramentas do envio ao Kindle (opcionais)"
+  local faltam=()
+  command -v pandoc >/dev/null 2>&1 || faltam+=("pandoc")
+  command -v pdftoppm >/dev/null 2>&1 || faltam+=("poppler")
+  { command -v xelatex >/dev/null 2>&1 || [ -x /Library/TeX/texbin/xelatex ]; } || faltam+=("basictex")
+  { command -v ebook-convert >/dev/null 2>&1 || [ -x /Applications/calibre.app/Contents/MacOS/ebook-convert ]; } || faltam+=("calibre")
+  { command -v k2pdfopt >/dev/null 2>&1 || [ -x "$HOME/.local/bin/k2pdfopt" ]; } || faltam+=("k2pdfopt")
+
+  if [ "${#faltam[@]}" -eq 0 ]; then
+    ok "pandoc, poppler, xelatex, Calibre e k2pdfopt encontrados"
+    return
+  fi
+  if [ "$KINDLE" -eq 0 ]; then
+    info "Faltam (só necessários para enviar ao Kindle): ${faltam[*]}"
+    info "Para instalar o que dá: bash bin/preparar --kindle"
+    return
+  fi
+  if [ "$SO" != "Darwin" ] || ! command -v brew >/dev/null 2>&1; then
+    aviso "Instalação automática só com Homebrew no macOS. Faltam: ${faltam[*]} (veja a lista no README)."
+    return
+  fi
+  for item in "${faltam[@]}"; do
+    case "$item" in
+      pandoc | poppler)
+        info "brew install $item…"
+        rodar brew install "$item" && ok "$item instalado" || aviso "Não consegui instalar $item (veja o log)."
+        ;;
+      calibre | basictex)
+        info "brew install --cask $item… (pode pedir a senha do Mac)"
+        rodar brew install --cask "$item" && ok "$item instalado" || aviso "Não consegui instalar $item (veja o log). Se o erro for 'Recurso ocupado', feche o Finder/Spotlight e tente de novo."
+        ;;
+      k2pdfopt)
+        aviso "k2pdfopt: não está no Homebrew e o site exige um CAPTCHA. Baixe em https://www.willus.com/k2pdfopt/download/ (Mac OSX ARM 64-bit ou x86), salve como ~/.local/bin/k2pdfopt e rode: chmod +x ~/.local/bin/k2pdfopt && xattr -d com.apple.quarantine ~/.local/bin/k2pdfopt"
+        ;;
+    esac
+  done
+}
+
+# ---------------------------------------------------------------- execução
+printf '%sOrganizador de Estudos: preparando o ambiente%s\n' "$NEGRITO" "$FIM"
+garantir_node
+checar_ferramentas
+neutralizar_ambiente
+instalar_dependencias
+compilar
+teste_rapido
+checar_porta
+ferramentas_kindle
+
+printf '\n'
+if [ "$AVISOS" -gt 0 ]; then
+  printf '%sPronto, com %d aviso(s) acima.%s\n' "$NEGRITO$AMARELO" "$AVISOS" "$FIM"
+else
+  printf '%sTudo pronto.%s\n' "$NEGRITO$VERDE" "$FIM"
+fi
+printf 'Para usar:  bin/estudar     (sobe o app e abre o navegador)\n'
+printf 'A pasta de dados (dados/) é criada sozinha na primeira execução.\n'
+
+if [ "$ABRIR" -eq 1 ]; then
+  exec bash "$RAIZ/bin/estudar"
+fi

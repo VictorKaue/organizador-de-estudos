@@ -123,8 +123,8 @@ if front_desatualizado; then
   if ! npm run build --silent >"$LOG_FILE.build" 2>&1; then
     cat "$LOG_FILE.build" >&2
     echo "Falha ao compilar o front." >&2
-    echo "Se o erro fala de @rollup, dlopen ou 'declaration file' (@xterm), a instalação está corrompida:" >&2
-    echo "  rm -rf node_modules web/node_modules server/node_modules shared/node_modules && npm cache verify && npm ci" >&2
+    echo "Se o erro fala de @rollup, dlopen ou 'declaration file' (@xterm), a instalação está corrompida." >&2
+    echo "Rode o preparo, que detecta e conserta isso:  bash bin/preparar" >&2
     exit 1
   fi
 fi

@@ -8,6 +8,7 @@
     "web"
   ],
   "scripts": {
+    "preparar": "bash bin/preparar",
     "dev": "concurrently -n server,web -c blue,green \"npm run dev -w server\" \"npm run dev -w web\"",
     "build": "npm run build -w web",
     "start": "npm run start -w server",

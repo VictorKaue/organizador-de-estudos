@@ -3,6 +3,7 @@ dist/
 .estudar.pid
 .estudar.log
 .estudar.log.build
+.preparar.log
 .DS_Store
 *.tsbuildinfo
 .env*
