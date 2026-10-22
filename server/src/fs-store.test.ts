@@ -1,8 +1,12 @@
 import { mkdtemp, readFile, rm, stat, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { CaminhoInvalido, Conflito, NaoEncontrado, Store, resolverDentro } from "./fs-store";
+
+const execFileAsync = promisify(execFile);
 
 describe("resolverDentro", () => {
   const raiz = path.resolve("/tmp/dados");
@@ -42,6 +46,26 @@ describe("Store", () => {
     expect(await readFile(path.join(store.raiz, "CLAUDE.md"), "utf8")).toContain("tutor");
     expect(await readFile(path.join(store.raiz, ".gitignore"), "utf8")).toContain("docs/");
     expect((await stat(path.join(store.raiz, ".git"))).isDirectory()).toBe(true);
+  });
+
+  it("cria do zero tudo o que o projeto compartilhado precisa (comandos, agentes, Gemini, git com 1º commit)", async () => {
+    for (const arquivo of [
+      ".claude/commands/gerar-exercicios.md",
+      ".claude/commands/relatorio-semanal.md",
+      ".claude/agents/redator-questoes.md",
+      ".claude/scripts/validar.mjs",
+      ".claude/formato-dados.md",
+      "GEMINI.md",
+      "GEMINI-extra.md",
+    ]) {
+      expect((await stat(path.join(store.raiz, arquivo))).isFile(), arquivo).toBe(true);
+    }
+    // nada de dados pessoais nos arquivos gerados
+    for (const arquivo of ["CLAUDE.md", "GEMINI-extra.md", ".claude/agents/redator-questoes.md", ".claude/commands/importar-plano.md"]) {
+      expect(await readFile(path.join(store.raiz, arquivo), "utf8"), arquivo).not.toContain("Victor");
+    }
+    const log = await execFileAsync("git", ["log", "--oneline"], { cwd: store.raiz }).catch(() => null);
+    if (log) expect(log.stdout).toContain("pasta de dados criada pelo app"); // sem git instalado, o app só avisa
   });
 
   it("iniciar é idempotente e não sobrescreve arquivos existentes", async () => {

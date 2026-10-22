@@ -23,6 +23,8 @@ import {
   COMANDOS,
   FORMATO_DADOS_MD,
   FORMATO_EXERCICIO_MD,
+  GEMINI_DADOS,
+  GEMINI_EXTRA_DADOS,
   GITIGNORE_DADOS,
   IMPORT_FORMATO,
   PROCEDIMENTO_REVISAO_MD,
@@ -125,6 +127,10 @@ export class Store {
         await writeFile(claude, `${atual.trimEnd()}\n\n## Formato dos dados e procedimentos\n${IMPORT_FORMATO}\n`, "utf8");
       }
     }
+    // Contexto opcional para o Gemini CLI (o GEMINI.md da raiz o importa); é do usuário, então só criamos se faltar.
+    for (const [nome, conteudo] of [["GEMINI.md", GEMINI_DADOS], ["GEMINI-extra.md", GEMINI_EXTRA_DADOS]] as const) {
+      if (!(await existe(this.caminho(nome)))) await writeFile(this.caminho(nome), conteudo, "utf8");
+    }
     const gitignore = this.caminho(".gitignore");
     if (!(await existe(gitignore))) await writeFile(gitignore, GITIGNORE_DADOS, "utf8");
 
@@ -152,8 +158,15 @@ export class Store {
     if (!(await existe(this.caminho(".git")))) {
       try {
         await execFileAsync("git", ["init", "--quiet"], { cwd: this.raiz });
+        // Primeiro commit com os arquivos-base; identidade própria para não depender da configuração do git do usuário.
+        await execFileAsync("git", ["add", "-A"], { cwd: this.raiz });
+        await execFileAsync(
+          "git",
+          ["-c", "user.name=Organizador de Estudos", "-c", "user.email=organizador@localhost", "commit", "--quiet", "-m", "🎉 chore: pasta de dados criada pelo app"],
+          { cwd: this.raiz },
+        );
       } catch (e) {
-        console.warn("Aviso: não foi possível executar `git init` na pasta de dados:", (e as Error).message);
+        console.warn("Aviso: não foi possível criar o repositório git da pasta de dados:", (e as Error).message);
       }
     }
   }

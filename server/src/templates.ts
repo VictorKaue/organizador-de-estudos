@@ -4,7 +4,7 @@ export const IMPORT_FORMATO = "@.claude/formato-dados.md";
 /** CLAUDE.md criado na raiz da pasta de dados: instruções para a IA que ler/editar os arquivos. */
 export const CLAUDE_MD_DADOS = `# Pasta de dados — Organizador de Estudos
 
-Você é o **tutor** do Victor. Esta pasta é a base de dados do organizador de estudos
+Você é o **tutor** do aluno. Esta pasta é a base de dados do organizador de estudos
 (arquivos MD + JSON). Leia e edite os arquivos livremente; o app reflete as mudanças.
 Tudo está versionado em git: faça mudanças pequenas e explique o que alterou.
 
@@ -425,7 +425,7 @@ Escreva o material de estudo de \`$ARGUMENTS\` como nota Markdown em
 
 1. Leia o \`materia.json\` (tópico, \`dominar\`/\`treinar\`, \`fontes\`), as notas já existentes do tópico
    e o domínio dele em \`progresso/resumo.json\`. Se a nota do tópico já existe, **acrescente ou
-   melhore** em vez de criar outra; não apague o que o Victor escreveu.
+   melhore** em vez de criar outra; não apague o que o aluno escreveu.
 2. Se houver PDFs ou material em \`docs/\`, use-os como base. Não invente fontes: cite só as de
    \`materia.json → fontes\`; conteúdo que vem do seu conhecimento geral deve ser tratado como tal,
    sem fingir referência. Se o tópico for ambíguo ou o nível não estiver claro, pergunte antes.
@@ -517,7 +517,7 @@ model: haiku
 omitClaudeMd: true
 ---
 
-Você redige rascunhos de exercícios para o Victor (estudante). Português do Brasil, tom direto.
+Você redige rascunhos de exercícios para o aluno. Português do Brasil, tom direto.
 
 Antes de começar, leia \`.claude/formato-exercicio.md\` **dentro da pasta de dados recebida** (formato completo do arquivo).
 
@@ -670,6 +670,7 @@ só nas divergências). Você não resolve as questões: compara e aplica.
 6. **Promoção para correção automática**: só em itens verificados cuja resposta é curta e
    inequívoca (letra de múltipla escolha; número de cálculo; uma palavra/expressão sem variação).
    Adicione \`"correcao": "automatica"\` ao item. Em qualquer dúvida deixe \`autoavaliacao\`.
+   Depois de aplicar tudo, rode \`node .claude/scripts/validar.mjs\` e corrija qualquer \`ERRO\` antes de relatar.
 7. **Relatório final** (PT-BR, curto): quantos verificados, quantos corrigidos pelo árbitro (com o
    que mudou), quantos continuam divergentes (liste id e motivo) e quantos viraram automática.
    Os divergentes ficam como rascunho para o aluno decidir; nunca os apague.
@@ -746,9 +747,183 @@ try {
   process.exit(1);
 }
 `,
+  "validar.mjs": `// Valida exercícios e flashcards contra o formato dos dados.
+// Uso (na pasta de dados): node .claude/scripts/validar.mjs [pasta-ou-arquivo ...]
+//   Sem argumentos valida tudo em contextos/. Sai com código 1 se houver erro.
+import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
+import { join, basename, dirname } from "node:path";
+
+const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+const TIPOS = ["multipla_escolha", "discursiva", "codigo", "calculo", "leetcode", "comportamental"];
+const CORRECOES = ["automatica", "autoavaliacao", "ia"];
+const erros = [];
+const avisos = [];
+const falha = (arq, msg) => erros.push(\`\${arq}: \${msg}\`);
+const aviso = (arq, msg) => avisos.push(\`\${arq}: \${msg}\`);
+
+function ler(arq) {
+  try {
+    return JSON.parse(readFileSync(arq, "utf8"));
+  } catch (e) {
+    falha(arq, \`JSON inválido (\${e.message})\`);
+    return null;
+  }
+}
+
+function topicosDe(dirMateria) {
+  const arq = join(dirMateria, "materia.json");
+  if (!existsSync(arq)) return null;
+  const m = ler(arq);
+  return m ? new Set((m.topicos ?? []).map((t) => t.id)) : null;
+}
+
+function exercicio(arq) {
+  const e = ler(arq);
+  if (!e) return;
+  const id = basename(arq, ".json");
+  if (e.schemaVersion !== 1) falha(arq, "schemaVersion deve ser 1");
+  if (e.id !== id) falha(arq, \`id "\${e.id}" difere do nome do arquivo "\${id}"\`);
+  if (!SLUG.test(e.id ?? "")) falha(arq, "id deve ser slug (a-z, 0-9, hífen)");
+  if (!e.titulo?.trim()) falha(arq, "titulo vazio");
+  if (!TIPOS.includes(e.tipo)) falha(arq, \`tipo inválido: \${e.tipo}\`);
+  if (!Number.isInteger(e.dificuldade) || e.dificuldade < 1 || e.dificuldade > 5) falha(arq, "dificuldade deve ser inteiro 1–5");
+  if (!e.enunciado?.trim()) falha(arq, "enunciado vazio");
+  if (!Array.isArray(e.alternativas)) falha(arq, "alternativas deve ser lista ([] se não houver, nunca null)");
+  if (!CORRECOES.includes(e.correcao)) falha(arq, \`correcao inválida: \${e.correcao}\`);
+  if (!Array.isArray(e.tentativas)) falha(arq, "tentativas deve ser lista");
+  if (!Array.isArray(e.tags)) falha(arq, "tags deve ser lista");
+  if (!e.resolucao?.trim()) falha(arq, "resolucao vazia (o aluno precisa dela para se autoavaliar)");
+  if (!/^\\d{4}-\\d\\d-\\d\\dT/.test(e.criado ?? "")) falha(arq, "criado deve ser ISO 8601");
+  const tops = topicosDe(dirname(dirname(arq)));
+  if (e.topico != null && tops && !tops.has(e.topico)) falha(arq, \`topico "\${e.topico}" não existe em materia.json\`);
+
+  const alts = e.alternativas ?? [];
+  const gab = String(e.gabarito ?? "").trim();
+  if (e.tipo === "multipla_escolha") {
+    if (alts.length < 2) falha(arq, "multipla_escolha precisa de 2+ alternativas");
+    if (alts.some((a) => /^\\s*[A-Ea-e][).:-]\\s/.test(a))) falha(arq, "alternativas não devem ter prefixo de letra (A), B)…)");
+    const i = "ABCDEFGH".indexOf(gab.toUpperCase());
+    if (gab.length !== 1 || i < 0 || i >= alts.length) falha(arq, \`gabarito "\${gab}" deve ser uma letra que exista nas alternativas\`);
+  }
+  if (e.tipo === "calculo" && e.correcao === "automatica" && !/^-?\\d+([.,]\\d+)?$/.test(gab)) {
+    falha(arq, \`calculo automatica exige gabarito só numérico, veio "\${gab}"\`);
+  }
+  if (e.correcao === "automatica" && !gab) falha(arq, "automatica exige gabarito");
+  if (e.correcao === "automatica" && (e.tags ?? []).includes("rascunho")) {
+    falha(arq, "rascunho não pode ser automatica (só a revisão independente promove)");
+  }
+  if ((e.tags ?? []).includes("rascunho") && e.correcao !== "autoavaliacao") {
+    falha(arq, "rascunho deve nascer com correcao autoavaliacao");
+  }
+  if (!e.fonte) aviso(arq, "sem fonte (cite a nota/plano/fonte de onde vem o conceito)");
+}
+
+function flashcards(arq) {
+  const f = ler(arq);
+  if (!f) return;
+  if (f.schemaVersion !== 1) falha(arq, "schemaVersion deve ser 1");
+  if (!Array.isArray(f.cartoes)) return falha(arq, "cartoes deve ser lista");
+  const tops = topicosDe(dirname(arq));
+  const vistos = new Set();
+  for (const c of f.cartoes) {
+    const r = \`\${arq} [\${c.id}]\`;
+    if (!SLUG.test(c.id ?? "")) falha(r, "id deve ser slug");
+    if (vistos.has(c.id)) falha(r, "id duplicado");
+    vistos.add(c.id);
+    if (!c.frente?.trim() || !c.verso?.trim()) falha(r, "frente e verso são obrigatórios");
+    if (c.topico != null && tops && !tops.has(c.topico)) falha(r, \`topico "\${c.topico}" não existe em materia.json\`);
+    if (c.frente && c.frente.length > 300) aviso(r, "frente longa: um cartão = uma ideia");
+  }
+}
+
+function varrer(alvo) {
+  if (!existsSync(alvo)) return falha(alvo, "não existe");
+  if (statSync(alvo).isFile()) {
+    if (basename(alvo) === "flashcards.json") flashcards(alvo);
+    else if (basename(dirname(alvo)) === "exercicios" && alvo.endsWith(".json")) exercicio(alvo);
+    return;
+  }
+  for (const nome of readdirSync(alvo)) {
+    if (nome === "docs" || nome === "node_modules" || nome.startsWith(".")) continue;
+    varrer(join(alvo, nome));
+  }
+}
+
+const alvos = process.argv.slice(2);
+for (const a of alvos.length ? alvos : ["contextos"]) varrer(a);
+
+for (const a of avisos) console.log(\`aviso  \${a}\`);
+for (const e of erros) console.log(\`ERRO   \${e}\`);
+console.log(erros.length ? \`\\n\${erros.length} erro(s). Corrija e rode de novo.\` : "\\nOK: formato válido.");
+process.exit(erros.length ? 1 : 0);
+`,
 };
 
 export const GITIGNORE_DADOS = `# Material pesado (PDFs, slides, imagens) fica fora do git
 contextos/*/*/docs/
 .DS_Store
+`;
+
+/** Contexto do Gemini CLI dentro de `dados/` (opcional; criado só se não existir, pois é do usuário). */
+export const GEMINI_DADOS = `# Pasta de dados — contexto para o Gemini CLI
+
+Use quando o Gemini CLI for iniciado dentro de \`dados/\`. As regras vêm do mesmo lugar que
+as do Claude Code.
+
+**Leia agora, por inteiro, estes arquivos** (se a sua ferramenta não expandir as linhas \`@\`
+abaixo): \`CLAUDE.md\`, \`.claude/formato-dados.md\` e \`GEMINI-extra.md\`.
+
+@CLAUDE.md
+
+@GEMINI-extra.md
+`;
+
+export const GEMINI_EXTRA_DADOS = `# Particularidades do Gemini CLI
+
+## Comandos
+Os \`/comandos\` citados nos outros arquivos (\`/gerar-exercicios\`, \`/recomendar\`…) são do Claude
+Code e **não existem aqui**. Quando o aluno pedir algo equivalente, leia o arquivo
+\`.claude/commands/<nome>.md\` e siga os passos dele por conta própria. Ignore o que falar de
+subagentes, \`model:\` ou \`allowed-tools\`: faça o trabalho você mesmo. Para exercícios, redija e
+depois resolva às cegas cada um (sem olhar o gabarito) antes de manter \`automatica\`; na dúvida,
+deixe \`autoavaliacao\` com a tag \`rascunho\`.
+
+## Gerar conteúdo de estudo em Markdown
+Para "gera a nota/o material de <tópico>", leia \`.claude/commands/gerar-nota.md\` e siga os passos
+(frontmatter \`tipo: nota\` + \`topico\`, seções fixas, LaTeX com \`$…$\`). O mesmo vale para
+\`gerar-plano.md\`. Depois rode \`node .claude/scripts/validar.mjs\` se tiver mexido em JSON.
+
+## Modo sessão de estudo (quando o aluno disser que vai estudar um tema)
+1. Descubra a matéria e o tópico: leia o \`materia.json\` correspondente (tópicos, \`fontes\`) e as
+   notas existentes do tópico, para não repetir nem contradizer o que já está salvo.
+2. Ensine conversando: explicação clara, exemplo curto, depois uma pergunta ou exercício para ele
+   tentar. Corrija na hora, apontando o erro, o porquê e o caminho certo.
+3. **Salve conforme avança, sem esperar ele pedir** (mudanças pequenas, avise o que gravou):
+   - explicação que valha guardar → nota em \`contextos/<ctx>/<mat>/notas/<slug>.md\`
+     (frontmatter YAML; se já existe nota do tópico, acrescente em vez de criar outra);
+   - exercício que você propôs → \`exercicios/<id>.json\` seguindo \`formato-dados.md\`
+     (\`correcao: "autoavaliacao"\`, tag \`rascunho\`, \`tentativas: []\`);
+   - conceito novo ou erro dele → cartão em \`flashcards.json\` (só os campos de conteúdo);
+   - ao encerrar, acrescente **uma linha** em \`progresso/sessoes.jsonl\` (veja as linhas existentes
+     para copiar os campos exatos; nunca reescreva o arquivo).
+4. Quando ele resolver um exercício no chat, **não grave a tentativa por ele** como se fosse feita
+   no app: diga que o registro de acertos/erros e o domínio dependem de ele responder pelo site.
+   Se ele pedir mesmo assim, grave a tentativa com a \`resposta\` dele e o \`resultado\` que você
+   avaliou, \`correcao.origem: "ia"\`.
+5. **Depois de gravar qualquer exercício ou flashcard, rode obrigatoriamente**
+   \`node .claude/scripts/validar.mjs\` (na raiz do projeto: \`node dados/.claude/scripts/validar.mjs\`).
+   Se aparecer \`ERRO\`, corrija e rode de novo; só diga que terminou quando vier \`OK\`. Os \`aviso\`
+   (ex.: sem \`fonte\`) devem ser resolvidos quando possível.
+
+## Qualidade das questões
+- Baseie-se no material da matéria (notas, planos, \`fontes\`) e preencha \`fonte\`; não invente.
+- Um conceito por questão; enunciado sem ambiguidade; para múltipla escolha, distratores
+  plausíveis (erros típicos reais), nunca absurdos, e uma única correta.
+- Varie \`dificuldade\` e \`tipo\`; inclua questões que exijam aplicar, não só lembrar.
+- \`resolucao\` explica **por que** a certa está certa e por que cada errada falha.
+- Antes de gravar, resolva você mesmo cada questão do zero, sem olhar o gabarito que pretende
+  gravar; se a sua resposta diferir, a questão está ruim: reescreva ou descarte.
+- Questões novas sempre com tag \`rascunho\` e \`correcao: "autoavaliacao"\`. Nunca marque
+  \`revisado\` nem \`automatica\` por conta própria: a revisão independente (outro modelo, às cegas)
+  é feita depois, por quem o aluno indicar.
 `;
