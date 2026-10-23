@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { EditorTema } from "../components/configuracoes/EditorTema";
+import { SeletorEstilo } from "../components/configuracoes/SeletorEstilo";
 import { SeletorTema } from "../components/configuracoes/SeletorTema";
 import { novoIdPersonalizado, type DefinicaoTema } from "../tema";
 import "./configuracoes.css";
@@ -24,15 +25,18 @@ export function PaginaConfiguracoes() {
           aoFechar={() => setEdicao(null)}
         />
       ) : (
-        <SeletorTema
-          aoCriar={(modelo) =>
-            setEdicao({
-              existente: false,
-              tema: { ...modelo, id: novoIdPersonalizado(), nome: "Meu tema", nativo: undefined, cores: { ...modelo.cores } },
-            })
-          }
-          aoEditar={(tema) => setEdicao({ existente: true, tema })}
-        />
+        <>
+          <SeletorEstilo />
+          <SeletorTema
+            aoCriar={(modelo) =>
+              setEdicao({
+                existente: false,
+                tema: { ...modelo, id: novoIdPersonalizado(), nome: "Meu tema", nativo: undefined, cores: { ...modelo.cores } },
+              })
+            }
+            aoEditar={(tema) => setEdicao({ existente: true, tema })}
+          />
+        </>
       )}
     </>
   );

@@ -68,3 +68,17 @@
     flex: 1 1 8rem;
   }
 }
+
+.cfg-previa-estilo {
+  display: grid;
+  gap: 6px;
+}
+.cfg-previa-estilo .cfg-previa-dupla .ui-previa {
+  aspect-ratio: 4 / 3;
+}
+.cfg-amostra {
+  font-size: 1.35rem;
+  line-height: 1.2;
+  text-align: center;
+  color: var(--texto);
+}

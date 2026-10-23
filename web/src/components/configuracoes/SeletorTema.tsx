@@ -1,5 +1,6 @@
 import { AUTO, excluirPersonalizado, selecionarTema, temaEfetivo, type DefinicaoTema } from "../../tema";
-import { PREDEFINIDOS, TEMA_PADRAO_CLARO, TEMA_PADRAO_ESCURO } from "../../temas/predefinidos";
+import { PREDEFINIDOS } from "../../temas/predefinidos";
+import { useEstilo } from "../../useEstilo";
 import { useTema } from "../../useTema";
 import { CartaoOpcao, GradeResponsiva, PreviaTema, Secao } from "../ui";
 
@@ -14,11 +15,12 @@ const GRUPO = "tema";
 /** Grade de temas: automático, prontos e personalizados; escolher aplica na hora. */
 export function SeletorTema({ aoCriar, aoEditar }: Props) {
   const pref = useTema();
+  const estilo = useEstilo();
 
   return (
     <Secao
-      titulo="Tema"
-      descricao="A escolha vale só neste navegador e é aplicada na hora."
+      titulo="Cores"
+      descricao="Troca só as cores do estilo escolhido acima. Automático usa as cores do próprio estilo e segue o sistema (dia ou noite). Vale só neste navegador."
       acoes={
         <button type="button" onClick={() => aoCriar(temaEfetivo(pref))}>
           Criar tema
@@ -35,8 +37,8 @@ export function SeletorTema({ aoCriar, aoEditar }: Props) {
           legenda="Segue o sistema: dia ou noite"
           visual={
             <div className="cfg-previa-dupla">
-              <PreviaTema cores={TEMA_PADRAO_CLARO.cores} />
-              <PreviaTema cores={TEMA_PADRAO_ESCURO.cores} />
+              <PreviaTema cores={estilo.claro} />
+              <PreviaTema cores={estilo.escuro} />
             </div>
           }
         />
@@ -47,9 +49,9 @@ export function SeletorTema({ aoCriar, aoEditar }: Props) {
             valor={t.id}
             selecionado={pref.selecao === t.id}
             aoEscolher={selecionarTema}
-            titulo={t.nome}
-            legenda={t.base === "claro" ? "Claro" : "Escuro"}
-            visual={<PreviaTema cores={t.cores} />}
+            titulo={t.nativo ? `${t.base === "claro" ? "Dia" : "Noite"} · ${estilo.nome}` : t.nome}
+            legenda={t.nativo ? "Cores do estilo, forçadas" : t.base === "claro" ? "Claro" : "Escuro"}
+            visual={<PreviaTema cores={t.nativo ? (t.base === "claro" ? estilo.claro : estilo.escuro) : t.cores} />}
           />
         ))}
         {pref.personalizados.map((t) => (
