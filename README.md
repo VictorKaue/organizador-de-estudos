@@ -14,7 +14,9 @@ App web **local** para organizar estudos de faculdade, cursos e carreira: matér
 - **Hoje**: plano do dia por regra (prazo × peso × lacuna × tempo sem praticar), respeitando os minutos que você tem; blocos de agenda e export `.ics`.
 - **Desempenho**: domínio por tópico, calibração, erros por categoria e comparação semanal.
 - **Relatórios**: feedback escrito pela IA (semanal, recomendação) em `relatorios/`.
-- **Busca**, **temas** (claro/escuro e personalizados), **exportar tudo em .zip** e um **terminal embutido** aberto na pasta de dados.
+- **Estilos visuais**: além do Solarpunk (padrão), Cyberpunk, Steampunk, Renascença, Fazenda, Fantasia, Universal (alto contraste e fonte de leitura fácil), Apple e Apple Liquid Glass. Cada um tem fontes, formas, ornamentos, arte de fundo e logo próprios, em versão de dia e de noite. Fica em **Configurações → Estilo**, e as **Cores** podem ser trocadas por cima.
+- **Largura do texto** ajustável (Estreita, Média, Larga, Total) nas notas, planos e relatórios.
+- **Busca**, **temas de cores** (claro/escuro e personalizados), **exportar tudo em .zip** e um **terminal embutido** aberto na pasta de dados.
 - **Enviar ao Kindle** (opcional): converte PDFs, Markdown e TXT e copia pelo cabo, ou prepara um EPUB para o Send to Kindle. Veja a seção própria abaixo.
 
 ## Requisitos
@@ -153,6 +155,8 @@ npm run typecheck  # tsc nos três pacotes
 ```
 
 Variáveis úteis: `DADOS_DIR`, `ESTUDOS_PORTA`, `KINDLE_VOLUME`, `KINDLE_ENVIO_DIR`, `ESTUDAR_NAO_ABRIR=1`, `ESTUDAR_NAVEGADOR`.
+
+Para criar um estilo novo: acrescente-o em `web/src/estilos/definicoes.ts` (paletas de dia e noite, fontes, raios, sombras), os ornamentos em `ornamentos.ts`, a arte de fundo em `horizontes.tsx`, o logo em `logos.tsx` e as regras de forma em `estilos.css` (sempre sob `html[data-estilo="id"]`). Importe as fontes em `main.tsx` (pacotes `@fontsource`, offline). O `npm test` confere o contraste (WCAG) das paletas e o CSS gerado.
 
 Para mudar os comandos, agentes ou o formato dos dados, edite `server/src/templates.ts`: os arquivos em `dados/.claude/` são regravados a partir dele a cada início.
 
