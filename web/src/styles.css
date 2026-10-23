@@ -735,7 +735,7 @@ button.secundario {
 /* Markdown renderizado */
 .markdown {
   /* medida de leitura em caracteres: acompanha o tamanho da fonte e a largura livre */
-  max-width: min(100%, 90ch);
+  max-width: min(100%, var(--medida-leitura));
   overflow-wrap: break-word;
 }
 .markdown p,
@@ -1898,7 +1898,31 @@ kbd {
   transform: none;
 }
 
-/* Leitura: linhas de ~74 caracteres (tabelas e código usam a largura toda) */
+/* Leitura: linhas mais curtas que o bloco (tabelas e código usam a largura toda). A largura do texto é
+   escolhida em "Largura do texto" (data-leitura no <html>); o padrão é "larga". */
+:root {
+  --medida-leitura: 130ch;
+  --medida-linha: 112ch;
+}
+:root[data-leitura="estreita"] {
+  --medida-leitura: 70ch;
+  --medida-linha: 60ch;
+}
+:root[data-leitura="media"] {
+  --medida-leitura: 90ch;
+  --medida-linha: 74ch;
+}
+:root[data-leitura="larga"] {
+  --medida-leitura: 130ch;
+  --medida-linha: 112ch;
+}
+:root[data-leitura="total"] {
+  --medida-leitura: 100%;
+  --medida-linha: 100%;
+}
+:root[data-leitura="total"] .conteudo {
+  max-width: none;
+}
 .markdown > p,
 .markdown > ul,
 .markdown > ol,
@@ -1907,7 +1931,7 @@ kbd {
 .markdown > h2,
 .markdown > h3,
 .markdown > h4 {
-  max-width: 74ch;
+  max-width: var(--medida-linha);
 }
 
 /* Toque: alvos de pelo menos 44px em telas de toque e janelas estreitas */

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, ErroApi, type TipoConteudo } from "../api";
 import { Editor } from "../components/Editor";
 import { EnviarKindle } from "../components/EnviarKindle";
+import { LarguraLeitura } from "../components/LarguraLeitura";
 import { criarResolvedor, Markdown } from "../components/Markdown";
 import { alternarTarefa } from "../lib/markdown";
 import { href } from "../rota";
@@ -228,6 +229,7 @@ export function PaginaDocumento({ ctx, mat, pasta, nome }: Props) {
               Editar
             </button>
           </div>
+          <LarguraLeitura />
           <button className="secundario" onClick={() => setKindle((v) => !v)} aria-expanded={kindle}>
             Kindle
           </button>

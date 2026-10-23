@@ -1,4 +1,5 @@
 import { api, type InfoRelatorio } from "../api";
+import { LarguraLeitura } from "../components/LarguraLeitura";
 import { Markdown } from "../components/Markdown";
 import { href } from "../rota";
 import { useAsync } from "../useAsync";
@@ -74,10 +75,13 @@ export function PaginaRelatorio({ nome }: { nome: string }) {
       {carga.carregando && !r && <p className="suave">Carregando…</p>}
       {r && (
         <>
-          <p className="suave">
-            {rotuloTipo(r.tipo)}
-            {r.escopo ? ` · ${r.escopo}` : ""} · {dataBr(r.data)}
-          </p>
+          <div className="cabecalho-doc">
+            <p className="suave">
+              {rotuloTipo(r.tipo)}
+              {r.escopo ? ` · ${r.escopo}` : ""} · {dataBr(r.data)}
+            </p>
+            <LarguraLeitura />
+          </div>
           <Markdown fonte={r.conteudo} />
         </>
       )}
