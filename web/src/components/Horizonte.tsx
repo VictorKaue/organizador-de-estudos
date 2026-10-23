@@ -1,3 +1,12 @@
+import { useEstilo } from "../useEstilo";
+import {
+  HorizonteCyberpunk,
+  HorizonteFantasia,
+  HorizonteFazenda,
+  HorizonteRenascenca,
+  HorizonteSteampunk,
+} from "../estilos/horizontes";
+
 const BASE = 190;
 
 /** Torre em terraços: três blocos que afinam, jardins nas beiras, copa no topo e janelas. */
@@ -36,9 +45,9 @@ function Torre({ x, w, h }: { x: number; w: number; h: number }) {
 }
 
 /** Cidade-jardim ao fundo: torres com jardins, cúpula, turbina eólica e painéis solares. */
-export function Horizonte() {
+function HorizonteSolarpunk() {
   return (
-    <div className="horizonte" aria-hidden="true">
+    <>
       <svg viewBox="0 0 1200 190" preserveAspectRatio="xMidYMax slice">
         <g fill="currentColor">
           {/* colinas */}
@@ -73,6 +82,25 @@ export function Horizonte() {
           <circle className="sol" cx="880" cy="52" r="26" />
         </g>
       </svg>
+    </>
+  );
+}
+
+/** Arte de fundo do estilo atual (universal, Apple e Liquid Glass não têm). */
+export function Horizonte() {
+  const { id } = useEstilo();
+  const arte =
+    id === "solarpunk" ? <HorizonteSolarpunk /> :
+    id === "cyberpunk" ? <HorizonteCyberpunk /> :
+    id === "steampunk" ? <HorizonteSteampunk /> :
+    id === "renascenca" ? <HorizonteRenascenca /> :
+    id === "fazenda" ? <HorizonteFazenda /> :
+    id === "fantasia" ? <HorizonteFantasia /> :
+    null;
+  if (!arte) return null;
+  return (
+    <div className="horizonte" aria-hidden="true">
+      {arte}
     </div>
   );
 }

@@ -18,6 +18,15 @@
   --raio-folha: 24px 6px 24px 6px;
   --raio: 14px;
   --raio-sm: 10px;
+  --raio-botao: 999px;
+  --raio-campo: 12px;
+  --raio-item: 16px;
+  /* tipografia dos títulos e do texto: cada estilo (estilos.css) ajusta */
+  --var-titulo: "SOFT" 100;
+  --peso-titulo: 600;
+  --espaco-titulo: -0.01em;
+  --caixa-titulo: none;
+  --escala-corpo: 1;
   --sombra: 0 1px 0 rgb(255 255 255 / 0.7) inset, 0 8px 20px -14px rgb(58 74 30 / 0.45);
   --sombra-alta: 0 14px 30px -16px rgb(58 74 30 / 0.5);
   --brilho: rgb(250 208 100 / 0.38);
@@ -109,7 +118,7 @@ body {
     var(--bg);
   background-attachment: fixed;
   color: var(--texto);
-  font: 1rem/1.55 var(--fonte-corpo);
+  font: calc(1rem * var(--escala-corpo)) / 1.55 var(--fonte-corpo);
 }
 /* grão de papel, bem sutil */
 body::before {
@@ -143,9 +152,10 @@ h1,
 h2,
 h3 {
   font-family: var(--fonte-titulo);
-  font-variation-settings: "SOFT" 100;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-variation-settings: var(--var-titulo);
+  font-weight: var(--peso-titulo);
+  letter-spacing: var(--espaco-titulo);
+  text-transform: var(--caixa-titulo);
 }
 h1 {
   font-size: clamp(1.55rem, 1.2rem + 1.4vw, 2rem);
@@ -228,7 +238,7 @@ h3 {
   align-items: center;
   gap: 0.55rem;
   font-family: var(--fonte-titulo);
-  font-variation-settings: "SOFT" 100;
+  font-variation-settings: var(--var-titulo);
   font-size: 1.15rem;
   font-weight: 650;
   letter-spacing: -0.01em;
@@ -291,7 +301,7 @@ h3 {
   align-items: center;
   gap: 0.6rem;
   padding: 0.5rem 0.75rem;
-  border-radius: 16px;
+  border-radius: var(--raio-item);
   transition: background-color 0.15s ease;
 }
 .item:hover {
@@ -381,7 +391,7 @@ h3 {
 }
 .cartao strong {
   font-family: var(--fonte-titulo);
-  font-variation-settings: "SOFT" 100;
+  font-variation-settings: var(--var-titulo);
   font-size: 1.1rem;
 }
 .faixa {
@@ -402,7 +412,7 @@ input,
 select {
   background: var(--superficie);
   border: 1px solid var(--borda);
-  border-radius: 12px;
+  border-radius: var(--raio-campo);
   padding: 0 0.75rem;
   height: 2.5rem;
   min-width: 0;
@@ -415,7 +425,7 @@ button {
   background: var(--destaque);
   color: var(--destaque-texto);
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--raio-botao);
   padding: 0 1.1rem;
   height: 2.5rem;
   font-weight: 600;
@@ -702,7 +712,7 @@ button.secundario {
   align-items: center;
   height: 2.5rem;
   padding: 0 1.1rem;
-  border-radius: 999px;
+  border-radius: var(--raio-botao);
   font-weight: 600;
   background: var(--destaque);
   color: var(--destaque-texto);
@@ -1147,7 +1157,7 @@ input.curto {
 }
 .tile-valor {
   font-family: var(--fonte-titulo);
-  font-variation-settings: "SOFT" 100;
+  font-variation-settings: var(--var-titulo);
   font-size: 2.1rem;
   font-weight: 600;
   line-height: 1.2;

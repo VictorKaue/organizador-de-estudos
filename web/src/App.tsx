@@ -3,6 +3,8 @@ import { api } from "./api";
 import { AlternarTema } from "./components/AlternarTema";
 import { Busca } from "./components/Busca";
 import { Horizonte } from "./components/Horizonte";
+import { LogoDoEstilo } from "./estilos/logos";
+import { useEstilo } from "./useEstilo";
 import { Lembretes } from "./components/Lembretes";
 import { SessaoAtivaWidget } from "./components/SessaoAtiva";
 import { PainelTerminal } from "./components/Terminal";
@@ -62,8 +64,10 @@ function salvarLateralRecolhida(recolhida: boolean): void {
 const TELA_ESTREITA = "(max-width: 800px)";
 const ATALHO_MAC = typeof navigator !== "undefined" && /mac/i.test(navigator.platform);
 
-/** Folha com sol nascente: marca do app. Usa as cores do tema. */
+/** Marca do app: folha com sol nascente no Solarpunk; os demais estilos têm a sua (estilos/logos.tsx). */
 function Logo() {
+  const { id } = useEstilo();
+  if (id !== "solarpunk") return <LogoDoEstilo id={id} />;
   return (
     <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true">
       <circle cx="23" cy="9" r="5" fill="var(--sol)" />

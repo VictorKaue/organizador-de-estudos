@@ -11,6 +11,17 @@
       // aplica o tema escolhido antes da primeira pintura (evita piscar no tema errado)
       try {
         var raiz = document.documentElement;
+        var estilo = localStorage.getItem("estudos.estilo");
+        if (estilo) {
+          raiz.setAttribute("data-estilo", estilo);
+          var css = localStorage.getItem("estudos.estilo-css");
+          if (css) {
+            var el = document.createElement("style");
+            el.id = "estudos-estilo";
+            el.textContent = css;
+            document.head.appendChild(el);
+          }
+        }
         var a = localStorage.getItem("estudos.tema-ativo");
         if (a) {
           a = JSON.parse(a);
