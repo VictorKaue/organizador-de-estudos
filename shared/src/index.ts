@@ -5,3 +5,4 @@ export * from "./desempenho";
 export * from "./srs";
 export * from "./recomendacao";
 export * from "./lacunas";
+export * from "./simulados";

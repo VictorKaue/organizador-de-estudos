@@ -1,4 +1,4 @@
-import type { CategoriaErro, Exercicio, Tentativa } from "@estudos/shared";
+import { tagSimulado, type CategoriaErro, type Exercicio, type Tentativa } from "@estudos/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api";
 import { AnotarErro } from "../components/AnotarErro";
@@ -115,6 +115,12 @@ function AjusteTentativa({
   );
 }
 
+/** Anterior/próxima: dentro do simulado, se a questão for de um; senão, as demais questões avulsas da matéria. */
+function questoesDaSequencia(ex: Exercicio, todas: Exercicio[]): Exercicio[] {
+  const tag = tagSimulado(ex);
+  return tag ? todas.filter((q) => tagSimulado(q) === tag) : todas.filter((q) => !tagSimulado(q));
+}
+
 export function PaginaExercicio({ ctx, mat, id }: { ctx: string; mat: string; id: string }) {
   const carga = useAsync(() => api.exercicio(ctx, mat, id), [ctx, mat, id]);
   const materia = useAsync(() => api.materia(ctx, mat), [ctx, mat]);
@@ -138,7 +144,7 @@ export function PaginaExercicio({ ctx, mat, id }: { ctx: string; mat: string; id
       nomeContexto={contextos.dados?.find((c) => c.id === ctx)?.nome ?? ctx}
       nomeMateria={materia.dados?.nome ?? mat}
       nomeTopico={materia.dados?.topicos.find((t) => t.id === ex.topico)?.nome ?? null}
-      questoes={lista.dados?.itens ?? []}
+      questoes={questoesDaSequencia(ex, lista.dados?.itens ?? [])}
       aoAtualizar={(e) => {
         setEx(e);
         lista.recarregar();
@@ -261,6 +267,16 @@ function Resolver({ ctx, mat, ex, nomeContexto, nomeMateria, nomeTopico, questoe
     }
   }
 
+  const doSimulado = tagSimulado(ex) !== null;
+  // Ao voltar para a matéria, abre a aba de onde a questão veio.
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(`materia-grupo:${ctx}/${mat}`, doSimulado ? "simulados" : "exercicios");
+    } catch {
+      /* sem armazenamento: volta para a aba padrão */
+    }
+  }, [ctx, mat, doSimulado]);
+
   const mostrarResolucao = ultima !== null || (ex.correcao === "autoavaliacao" && revelado);
   const respondendo = ultima === null;
 
@@ -268,7 +284,7 @@ function Resolver({ ctx, mat, ex, nomeContexto, nomeMateria, nomeTopico, questoe
     <>
       <p className="migalhas">
         <a href={href.home()}>Contextos</a> / <a href={href.contexto(ctx)}>{nomeContexto}</a> /{" "}
-        <a href={href.materia(ctx, mat)}>{nomeMateria}</a> / Exercícios
+        <a href={href.materia(ctx, mat)}>{nomeMateria}</a> / {doSimulado ? "Simulados" : "Exercícios"}
       </p>
       <NavegacaoQuestoes ctx={ctx} mat={mat} atual={ex.id} questoes={questoes} />
       <div className="cabecalho-doc">

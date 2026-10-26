@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { agruparConceitos, slugify, type Materia, type StatusTopico, type Topico } from "@estudos/shared";
+import { agruparConceitos, slugify, tagSimulado, type Materia, type StatusTopico, type Topico } from "@estudos/shared";
 import { api, type DadosMateria, type InfoArquivo, type TipoConteudo } from "../api";
 import { FaixaBadge, pct } from "../components/Dominio";
 import { FlashcardsSecao } from "../components/FlashcardsSecao";
@@ -9,6 +9,7 @@ import { NovoItem } from "../components/NovoItem";
 import { ROTULO_TIPO } from "../components/rotulos";
 import { Segmentos } from "../components/Segmentos";
 import { SessaoCartao } from "../components/SessaoCartao";
+import { SimuladosSecao } from "../components/SimuladosSecao";
 import { nomeArquivoMd } from "../lib/markdown";
 import { href } from "../rota";
 import { useAsync } from "../useAsync";
@@ -22,6 +23,7 @@ const ROTULO_STATUS: Record<StatusTopico, string> = {
 const GRUPOS = [
   { id: "conteudo", rotulo: "Conteúdo" },
   { id: "exercicios", rotulo: "Exercícios" },
+  { id: "simulados", rotulo: "Simulados" },
   { id: "estudar", rotulo: "Estudar" },
   { id: "topicos", rotulo: "Tópicos" },
 ] as const;
@@ -88,6 +90,8 @@ export function PaginaMateria({ ctx, mat }: { ctx: string; mat: string }) {
   const resumoTopicos = new Map(
     (desempenho.dados?.materias.find((m) => m.ctx === ctx && m.id === mat)?.topicos ?? []).map((t) => [t.id, t]),
   );
+  // As questões de simulado ficam na aba própria, não na lista geral.
+  const listaExercicios = (exercicios.dados?.itens ?? []).filter((ex) => !tagSimulado(ex));
   const nomeTopicoDe = (id: string | null) => materia.topicos.find((t) => t.id === id)?.nome ?? null;
 
   async function salvar(proxima: Materia): Promise<void> {
@@ -201,11 +205,11 @@ export function PaginaMateria({ ctx, mat }: { ctx: string; mat: string }) {
       <section>
         <h2>Exercícios</h2>
         {exercicios.erro && <p className="erro" role="alert">{exercicios.erro}</p>}
-        {exercicios.dados?.itens.length === 0 && (
+        {listaExercicios.length === 0 && (
           <p className="suave">Nenhum exercício ainda. Crie um para registrar suas tentativas.</p>
         )}
         <ul className="arquivos">
-          {exercicios.dados?.itens.map((ex) => {
+          {listaExercicios.map((ex) => {
             const ultima = ex.tentativas.at(-1);
             const pendentes = ex.tentativas.filter((t) => t.resultado === "pendente").length;
             return (
@@ -280,6 +284,10 @@ export function PaginaMateria({ ctx, mat }: { ctx: string; mat: string }) {
           Novo exercício
         </a>
       </section>
+      )}
+
+      {grupo === "simulados" && (
+        <SimuladosSecao ctx={ctx} mat={mat} exercicios={exercicios.dados?.itens ?? []} nomeTopico={nomeTopicoDe} />
       )}
 
       {grupo === "estudar" && (
