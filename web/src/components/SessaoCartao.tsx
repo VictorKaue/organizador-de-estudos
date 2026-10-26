@@ -44,7 +44,7 @@ export function SessaoCartao({ ctx, materia, aoRegistrar }: Props) {
       ctx,
       mat: materia.id,
       rotulo: materia.nome,
-      topico: topico || null,
+      topico: null,
       atividade,
       foco: foco.trim(),
       inicio: new Date().toISOString(),

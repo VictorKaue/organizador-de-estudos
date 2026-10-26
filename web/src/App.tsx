@@ -243,8 +243,6 @@ function Conteudo() {
           Relatórios
         </a>
 
-        <SessaoAtivaWidget />
-
         <p className="rotulo">Preferências</p>
         <a
           className={`item${rota.tipo === "configuracoes" ? " ativo" : ""}`}
@@ -261,6 +259,8 @@ function Conteudo() {
         <a className="item" href="/api/exportar?docs=0" download>
           Exportar sem documentos
         </a>
+
+        <SessaoAtivaWidget />
       </nav>
 
       <main className="conteudo" ref={principal} tabIndex={-1}>

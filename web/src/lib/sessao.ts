@@ -11,6 +11,8 @@ export interface SessaoAtiva {
   foco: string;
   /** ISO 8601. */
   inicio: string;
+  /** Timer: duração-meta em segundos; ausente no cronômetro (conta para cima). */
+  metaSegundos?: number | null;
 }
 
 const CHAVE = "estudos.sessaoAtiva";

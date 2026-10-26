@@ -270,7 +270,7 @@ h3 {
   position: sticky;
   bottom: 0;
   height: 110px;
-  margin: auto -0.75rem -1rem;
+  margin: 0.5rem -0.75rem -1rem;
   background: var(--destaque);
   opacity: 0.22;
   -webkit-mask: var(--ornamento-planta) center bottom / 100% auto no-repeat;
@@ -2389,4 +2389,40 @@ kbd {
 .simulado ol.arquivos {
   padding-left: 0;
   list-style-position: inside;
+}
+
+/* cronômetro/timer: fixo no fim da barra lateral */
+.lateral .sessao-ativa,
+.lateral .sessao-nova {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  margin: auto 0.25rem 0;
+  background: var(--lateral-bg);
+}
+.sessao-nova {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.6rem 0.5rem;
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+}
+.sessao-nova .rotulo {
+  margin: 0 0 0.1rem;
+}
+.sessao-modo {
+  display: flex;
+  gap: 0.3rem;
+}
+.sessao-modo > * {
+  flex: 1;
+  min-width: 0;
+}
+.sessao-modo button {
+  padding-inline: 0.3rem;
+  font-size: 0.85rem;
+}
+.sessao-modo input {
+  width: 0;
+  text-align: center;
 }
