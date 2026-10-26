@@ -45,6 +45,16 @@ import { Indice } from "./search";
 import { tokenTerminal } from "./terminal";
 
 const HOSTS_PERMITIDOS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+// Sufixos extras (ex.: ".ngrok-free.app") para acesso remoto; só a API aceita, o terminal embutido não.
+const SUFIXOS_EXTRAS = (process.env.ESTUDOS_HOSTS_EXTRAS ?? "")
+  .split(",")
+  .map((x) => x.trim().toLowerCase())
+  .filter((x) => x.startsWith("."));
+
+function hostPermitido(nomeHost: string): boolean {
+  const h = nomeHost.toLowerCase();
+  return HOSTS_PERMITIDOS.has(h) || SUFIXOS_EXTRAS.some((suf) => h.endsWith(suf));
+}
 
 /** Tipos que o navegador pode exibir inline sem risco de executar script na nossa origem. */
 const TIPOS_INLINE: Record<string, string> = {
@@ -103,7 +113,7 @@ export function criarApp(store: Store, opcoes: OpcoesApp = {}): Hono {
   app.use("*", async (c, next) => {
     const host = c.req.header("host") ?? "";
     const nomeHost = host.replace(/:\d+$/, "");
-    if (!HOSTS_PERMITIDOS.has(nomeHost)) return c.text("Host não permitido", 403);
+    if (!hostPermitido(nomeHost)) return c.text("Host não permitido", 403);
     if (c.req.method !== "GET" && c.req.method !== "HEAD") {
       const origem = c.req.header("origin");
       if (origem && new URL(origem).host !== host) return c.text("Origem não permitida", 403);
