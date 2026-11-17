@@ -21,6 +21,7 @@ import { PaginaFormExercicio } from "./pages/FormExercicio";
 import { PaginaMateria } from "./pages/Materia";
 import { PaginaRevisao } from "./pages/Revisao";
 import { PaginaRelatorio, PaginaRelatorios } from "./pages/Relatorios";
+import { PaginaLaboratorio, PaginaVisualizacao } from "./pages/Laboratorio";
 import { useOrientacao } from "./orientacao";
 import { href, useRota } from "./rota";
 import { useAsync } from "./useAsync";
@@ -129,7 +130,7 @@ function Conteudo() {
     return () => window.removeEventListener("keydown", aoTeclar);
   }, []);
 
-  const ctxAtual = "ctx" in rota && rota.tipo !== "revisao" ? rota.ctx : undefined;
+  const ctxAtual = "ctx" in rota && rota.tipo !== "revisao" && rota.tipo !== "visualizacao" ? rota.ctx : undefined;
 
   return (
     <div className={`shell${terminalAberto ? " com-terminal" : ""}${lateralRecolhida ? " sem-lateral" : ""}`}>
@@ -229,6 +230,13 @@ function Conteudo() {
           {totalRevisao > 0 && <span className="contagem destaque-contagem">{totalRevisao}</span>}
         </a>
         <a
+          className={`item${rota.tipo === "laboratorio" || rota.tipo === "visualizacao" ? " ativo" : ""}`}
+          aria-current={rota.tipo === "laboratorio" || rota.tipo === "visualizacao" ? "page" : undefined}
+          href={href.laboratorio()}
+        >
+          Laboratório
+        </a>
+        <a
           className={`item${rota.tipo === "desempenho" ? " ativo" : ""}`}
           aria-current={rota.tipo === "desempenho" ? "page" : undefined}
           href={href.desempenho()}
@@ -292,6 +300,15 @@ function Conteudo() {
           />
         )}
         {rota.tipo === "desempenho" && <PaginaDesempenho />}
+        {rota.tipo === "laboratorio" && <PaginaLaboratorio />}
+        {rota.tipo === "visualizacao" && (
+          <PaginaVisualizacao
+            key={`${rota.ctx}/${rota.mat}/${rota.nome}`}
+            ctx={rota.ctx}
+            mat={rota.mat}
+            nome={rota.nome}
+          />
+        )}
         {rota.tipo === "relatorios" && <PaginaRelatorios />}
         {rota.tipo === "relatorio" && <PaginaRelatorio key={rota.nome} nome={rota.nome} />}
         {rota.tipo === "configuracoes" && <PaginaConfiguracoes />}

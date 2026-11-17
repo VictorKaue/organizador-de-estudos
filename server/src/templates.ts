@@ -20,7 +20,8 @@ Tudo está versionado em git: faça mudanças pequenas e explique o que alterou.
 - Relatórios de feedback vão em \`relatorios/AAAA-MM-DD-<tipo>.md\` (ver "Relatórios" no formato
   dos dados) e aparecem na tela **Relatórios** do app.
 - Comandos prontos (\`.claude/commands\`): \`/relatorio-semanal\`, \`/recomendar\`, \`/corrigir-pendentes\`,
-  \`/gerar-plano\`, \`/gerar-nota\`, \`/importar-plano\`, \`/gerar-flashcards\`, \`/gerar-exercicios\`, \`/revisar-gabaritos\`.
+  \`/gerar-plano\`, \`/gerar-nota\`, \`/importar-plano\`, \`/gerar-flashcards\`, \`/gerar-exercicios\`, \`/revisar-gabaritos\`,
+  \`/gerar-visualizacao\`.
 
 ## Formato dos dados e procedimentos
 ${IMPORT_FORMATO}
@@ -49,6 +50,8 @@ export const FORMATO_DADOS_MD = `<!-- Gerado pelo app Organizador de Estudos. Mu
 - \`progresso/sessoes.jsonl\` — sessões de estudo, uma linha JSON por sessão; **só acrescente**.
 - \`progresso/resumo.json\` — agregados gerados pelo app (**não edite**; veja abaixo).
 - \`relatorios/\` — relatórios de feedback escritos pela IA (aparecem na tela **Relatórios**).
+- \`contextos/<contexto>/<materia>/visualizacoes/<slug>.html\` — visualizações interativas (tela
+  **Laboratório** e página da matéria; ver "Visualizações").
 
 ## Exercício (\`exercicios/<id>.json\`)
 O nome do arquivo é \`<id>.json\` e o campo \`id\` deve ser igual. O app ignora (e avisa sobre)
@@ -181,7 +184,32 @@ periodo: 2026-10-08 a 2026-10-14
 - Com poucos dados (menos de ~5 tentativas), diga "poucos dados" em vez de concluir.
 
 Comandos (\`.claude/commands\`): \`/relatorio-semanal\`, \`/recomendar\`, \`/corrigir-pendentes\`,
-\`/gerar-plano\`, \`/gerar-nota\`, \`/importar-plano\`, \`/gerar-flashcards\`, \`/gerar-exercicios\`, \`/revisar-gabaritos\`.
+\`/gerar-plano\`, \`/gerar-nota\`, \`/importar-plano\`, \`/gerar-flashcards\`, \`/gerar-exercicios\`, \`/revisar-gabaritos\`,
+  \`/gerar-visualizacao\`.
+
+## Visualizações (\`visualizacoes/<slug>.html\`)
+Páginas HTML interativas para ver um algoritmo ou conceito acontecendo (passo a passo, animação,
+parâmetros editáveis). O app lista em **Laboratório** e na matéria e exibe num iframe isolado
+(\`sandbox="allow-scripts"\`): o script roda, mas **não acessa a API, a rede nem o armazenamento**.
+
+- Um arquivo autocontido: HTML + \`<style>\` + \`<script>\` inline, sem CDN nem fontes externas
+  (o app roda offline). Nome = slug do arquivo (\`a-z\`, \`0-9\`, hífen) + \`.html\`; até 4 MB.
+- Metadados no topo:
+  \`<title>Nome curto</title>\`,
+  \`<meta name="estudos:topicos" content="id-do-topico, outro-id">\` (ids de \`materia.json\`) e
+  \`<meta name="estudos:descricao" content="uma frase">\`.
+- Não repita o título num \`<h1>\`: a página do app já mostra título e descrição.
+- **Cores e fontes do tema**: use os tokens que o app injeta no \`:root\`, sempre com reserva:
+  \`var(--bg)\`, \`--superficie\`, \`--borda\`, \`--texto\`, \`--suave\`, \`--destaque\`, \`--destaque-texto\`,
+  \`--destaque-fundo\`, \`--sol\`, \`--terracota\`, \`--ceu\`, \`--erro\`, \`--serie-1\`, \`--trilha\`,
+  \`--faixa-fraco|progresso|dominado|neutro\`, \`--raio\`, \`--raio-sm\`, \`--fonte-titulo\`, \`--fonte-corpo\`.
+  Ex.: \`color: var(--texto, #222)\`. Não use \`prefers-color-scheme\`: o app troca os tokens (claro/escuro
+  e estilo) ao vivo e marca \`<html data-tema-app="claro|escuro">\`. Fundo do \`body\`: \`var(--bg)\`.
+- A altura do iframe acompanha o conteúdo; layout responsivo (funciona a partir de ~380px de largura).
+- Links abrem em nova aba. Sem \`alert\`/\`confirm\`/\`prompt\` (bloqueados pelo sandbox).
+- Ensine com ela: estado visível a cada passo (tabela, valores), narração do que mudou e por quê,
+  controles Voltar/Próximo/Reproduzir, exemplos da própria matéria (exercícios, provas) e
+  \`prefers-reduced-motion\` respeitado.
 
 ## Recomendação (\`/recomendar\`)
 Relatório em \`relatorios/AAAA-MM-DD-recomendacao.md\` (\`tipo: recomendacao\`) com: o que estudar (pelo ranking de
@@ -414,6 +442,28 @@ Gere flashcards para \`$ARGUMENTS\` e acrescente-os ao \`flashcards.json\` da ma
 5. Mantenha os cartões existentes e o JSON válido.
 6. Resumo final em PT-BR: quantos cartões criou, por tópico, e lacunas do material que
    mereceriam exercícios.
+`,
+  "gerar-visualizacao": `---
+description: Cria uma visualização interativa (HTML) de um tópico para a tela Laboratório
+argument-hint: <matéria>/<tópico> [o que mostrar]
+---
+
+Crie uma visualização interativa para \`$ARGUMENTS\` em
+\`contextos/<contexto>/<materia>/visualizacoes/<slug>.html\` (regras em "Visualizações" de
+\`.claude/formato-dados.md\`).
+
+1. Leia o \`materia.json\` (tópico, \`dominar\`/\`treinar\`), as notas do tópico e os exercícios
+   ligados a ele. Se já existe visualização para o tópico, melhore-a em vez de criar outra.
+2. Decida o que o aluno precisa **ver acontecer**: o algoritmo passo a passo, o efeito de mudar um
+   parâmetro, a comparação entre duas abordagens. Use exemplos da matéria (exercícios, provas).
+3. Escreva um HTML autocontido: sem CDN nem fontes externas, cores e fontes pelos tokens do tema
+   com reserva (\`var(--texto, #222)\`), metas \`estudos:topicos\` e \`estudos:descricao\`.
+   Inclua: estado visível a cada passo, narração curta do que mudou e por quê, controles
+   Voltar/Próximo/Reproduzir/Início e algo que o aluno possa alterar.
+4. Confira a lógica antes de entregar: rode as funções puras com \`node\` num exemplo cujo
+   resultado você conhece (ex.: o gabarito de um exercício) e valide a sintaxe do script.
+5. Resumo final em PT-BR: o que a visualização mostra, como usar e onde abrir (Laboratório ou a
+   página da matéria).
 `,
   "gerar-nota": `---
 description: Gera uma nota de estudo em Markdown (explicação, exemplos e revisão) para um tópico

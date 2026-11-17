@@ -2426,3 +2426,37 @@ kbd {
   width: 0;
   text-align: center;
 }
+
+/* Sessões recentes (corrigir tempo) e aviso de sessão longa */
+.sessoes-recentes ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+.sessoes-recentes .linha-hist {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.sessao-longa {
+  margin: 0 0 0.5rem;
+}
+.sessao-longa input {
+  width: 100%;
+}
+
+/* Laboratório: visualizações interativas em iframe isolado */
+.visualizacao-frame {
+  display: block;
+  width: 100%;
+  min-height: 240px;
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  background: var(--bg);
+}
+.pagina-visualizacao h1 {
+  margin-bottom: 0.25rem;
+}

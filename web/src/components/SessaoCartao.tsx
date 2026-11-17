@@ -1,6 +1,7 @@
 import type { Atividade, Materia } from "@estudos/shared";
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import { SessoesRecentes } from "./SessoesRecentes";
 import {
   EVENTO_SESSAO,
   lerSessaoAtiva,
@@ -31,6 +32,7 @@ export function SessaoCartao({ ctx, materia, aoRegistrar }: Props) {
   const [minutos, setMinutos] = useState("");
   const [erro, setErro] = useState<string>();
   const [ok, setOk] = useState<string>();
+  const [recarga, setRecarga] = useState(0);
 
   useEffect(() => {
     const atualizar = () => setAtiva(lerSessaoAtiva());
@@ -71,6 +73,7 @@ export function SessaoCartao({ ctx, materia, aoRegistrar }: Props) {
       });
       setMinutos("");
       setOk(`Sessão de ${min} min registrada.`);
+      setRecarga((n) => n + 1);
       aoRegistrar();
     } catch (e) {
       setErro(e instanceof Error ? e.message : String(e));
@@ -133,6 +136,7 @@ export function SessaoCartao({ ctx, materia, aoRegistrar }: Props) {
       </div>
       {erro && <p className="erro" role="alert">{erro}</p>}
       {ok && <p className="suave">{ok}</p>}
+      <SessoesRecentes key={recarga} ctx={ctx} mat={materia.id} aoMudar={aoRegistrar} />
     </section>
   );
 }

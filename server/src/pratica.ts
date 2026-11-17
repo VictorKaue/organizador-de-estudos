@@ -14,6 +14,7 @@ import {
   type Exercicio,
   type Sessao,
   type Tentativa,
+  type ajustaSessaoSchema,
   type anotaTentativaSchema,
   type atualizaExercicioSchema,
   type novaSessaoSchema,
@@ -223,6 +224,7 @@ export class Pratica {
       dificuldadePercebida: entrada.dificuldadePercebida ?? null,
       categoriaErro: resultado === "acerto" ? null : (entrada.categoriaErro ?? null),
       porQueErrei: resultado === "acerto" ? "" : (entrada.porQueErrei ?? ""),
+      anotacao: entrada.anotacao ?? "",
       chute: entrada.chute ?? false,
       naoSei: entrada.naoSei ?? false,
       conceitosNaoSei: normalizarConceitos(entrada.conceitosNaoSei ?? []),
@@ -254,6 +256,7 @@ export class Pratica {
       ...t,
       ...(entrada.categoriaErro !== undefined ? { categoriaErro: entrada.categoriaErro } : {}),
       ...(entrada.porQueErrei !== undefined ? { porQueErrei: entrada.porQueErrei } : {}),
+      ...(entrada.anotacao !== undefined ? { anotacao: entrada.anotacao } : {}),
       ...(entrada.chute !== undefined ? { chute: entrada.chute } : {}),
       ...(entrada.conceitosNaoSei !== undefined
         ? { conceitosNaoSei: normalizarConceitos(entrada.conceitosNaoSei) }
@@ -266,7 +269,7 @@ export class Pratica {
     return ex;
   }
 
-  // ---- Sessões de estudo (progresso/sessoes.jsonl, só acrescenta) ----
+  // ---- Sessões de estudo (progresso/sessoes.jsonl, só acrescenta; correções entram como nova linha do mesmo id, a última vence) ----
 
   private get arquivoSessoes(): string {
     return this.store.caminhoDe("progresso", "sessoes.jsonl");
@@ -308,19 +311,55 @@ export class Pratica {
     }
     if (filtro.ctx) idSchema.parse(filtro.ctx);
     if (filtro.mat) idSchema.parse(filtro.mat);
-    const saida: Sessao[] = [];
+    // A última linha de cada id vence: é assim que correções e remoções entram sem reescrever o arquivo.
+    const porId = new Map<string, Sessao>();
     for (const linha of texto.split("\n")) {
       if (!linha.trim()) continue;
       try {
         const r = sessaoSchema.safeParse(JSON.parse(linha));
-        if (!r.success) continue;
-        if (filtro.ctx && r.data.ctx !== filtro.ctx) continue;
-        if (filtro.mat && r.data.mat !== filtro.mat) continue;
-        saida.push(r.data);
+        if (r.success) porId.set(r.data.id, r.data);
       } catch {
         /* linha corrompida: ignora */
       }
     }
-    return saida;
+    return [...porId.values()].filter(
+      (s) => !s.removida && (!filtro.ctx || s.ctx === filtro.ctx) && (!filtro.mat || s.mat === filtro.mat),
+    );
+  }
+
+  private async sessaoPorId(id: string): Promise<Sessao> {
+    const s = (await this.listarSessoes()).find((x) => x.id === id);
+    if (!s) throw new NaoEncontrado(id);
+    return s;
+  }
+
+  /** Corrige a duração (ou início/fim) de uma sessão acrescentando uma linha que substitui a anterior. */
+  async ajustarSessao(id: string, entrada: z.infer<typeof ajustaSessaoSchema>): Promise<Sessao> {
+    const atual = await this.sessaoPorId(id);
+    let inicio = Date.parse(entrada.inicio ?? atual.inicio);
+    let fim = Date.parse(entrada.fim ?? atual.fim);
+    if (Number.isNaN(inicio) || Number.isNaN(fim)) throw new EntradaInvalida("Datas inválidas");
+    if (entrada.duracaoSegundos !== undefined) {
+      if (entrada.fim && !entrada.inicio) inicio = fim - entrada.duracaoSegundos * 1000;
+      else fim = inicio + entrada.duracaoSegundos * 1000;
+    }
+    const duracao = Math.round((fim - inicio) / 1000);
+    if (duracao < 1) throw new EntradaInvalida("O fim deve ser depois do início");
+    if (duracao > UM_DIA_S) throw new EntradaInvalida("Sessão maior que 24 h; confira as datas");
+    const nova = sessaoSchema.parse({
+      ...atual,
+      inicio: new Date(inicio).toISOString(),
+      fim: new Date(fim).toISOString(),
+      duracaoSegundos: duracao,
+      duracaoOriginalSegundos: atual.duracaoOriginalSegundos ?? atual.duracaoSegundos,
+    });
+    await appendFile(this.arquivoSessoes, JSON.stringify(nova) + "\n", "utf8");
+    return nova;
+  }
+
+  /** Apaga uma sessão (linha de correção com `removida`; o histórico no arquivo é mantido). */
+  async removerSessao(id: string): Promise<void> {
+    const atual = await this.sessaoPorId(id);
+    await appendFile(this.arquivoSessoes, JSON.stringify({ ...atual, removida: true }) + "\n", "utf8");
   }
 }

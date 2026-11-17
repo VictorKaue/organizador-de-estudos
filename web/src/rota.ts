@@ -9,6 +9,8 @@ export type Rota =
   | { tipo: "arquivo"; ctx: string; mat: string; pasta: TipoConteudo; nome: string }
   | { tipo: "doc"; ctx: string; mat: string; nome: string }
   | { tipo: "exercicio"; ctx: string; mat: string; id: string }
+  | { tipo: "visualizacao"; ctx: string; mat: string; nome: string }
+  | { tipo: "laboratorio" }
   | { tipo: "exercicio-form"; ctx: string; mat: string; id: string | null }
   | { tipo: "desempenho" }
   | { tipo: "relatorios" }
@@ -25,6 +27,7 @@ export function lerRota(hash: string): Rota {
         return { tipo: "arquivo", ctx: ctx!, mat, pasta, nome };
       }
       if (pasta === "docs" && nome) return { tipo: "doc", ctx: ctx!, mat, nome };
+      if (pasta === "visualizacoes" && nome) return { tipo: "visualizacao", ctx: ctx!, mat, nome };
       if (pasta === "exercicios" && nome === "novo") {
         return { tipo: "exercicio-form", ctx: ctx!, mat, id: null };
       }
@@ -37,6 +40,7 @@ export function lerRota(hash: string): Rota {
     return { tipo: "contexto", ctx: ctx! };
   }
   if (partes[0] === "desempenho") return { tipo: "desempenho" };
+  if (partes[0] === "laboratorio") return { tipo: "laboratorio" };
   if (partes[0] === "relatorios") {
     return partes[1] ? { tipo: "relatorio", nome: partes[1] } : { tipo: "relatorios" };
   }
@@ -67,6 +71,9 @@ export const href = {
   editarExercicio: (ctx: string, mat: string, id: string) =>
     `#/c/${e(ctx)}/m/${e(mat)}/exercicios/${e(id)}/editar`,
   desempenho: () => "#/desempenho",
+  laboratorio: () => "#/laboratorio",
+  visualizacao: (ctx: string, mat: string, nome: string) =>
+    `#/c/${e(ctx)}/m/${e(mat)}/visualizacoes/${e(nome)}`,
   relatorios: () => "#/relatorios",
   configuracoes: () => "#/configuracoes",
   relatorio: (nome: string) => `#/relatorios/${e(nome)}`,

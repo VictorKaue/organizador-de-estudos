@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { href } from "../rota";
 import { useAsync } from "../useAsync";
-import { EVENTO_SESSAO, formatarDuracao, lerSessaoAtiva, salvarSessaoAtiva } from "../lib/sessao";
+import { EVENTO_SESSAO, LIMITE_SESSAO_LONGA_S, formatarDuracao, lerSessaoAtiva, salvarSessaoAtiva } from "../lib/sessao";
 
 const PRESETS_TIMER = [25, 50, 90];
 
@@ -12,6 +12,7 @@ export function SessaoAtivaWidget() {
   const [agora, setAgora] = useState(() => Date.now());
   const [erro, setErro] = useState<string>();
   const [salvando, setSalvando] = useState(false);
+  const [minutosReais, setMinutosReais] = useState("");
 
   useEffect(() => {
     const atualizar = () => setSessao(lerSessaoAtiva());
@@ -35,9 +36,20 @@ export function SessaoAtivaWidget() {
   const meta = sessao.metaSegundos ?? null;
   const restante = meta === null ? null : meta - decorrido;
   const esgotado = restante !== null && restante <= 0;
+  const longa = decorrido > LIMITE_SESSAO_LONGA_S;
 
   async function encerrar() {
     if (!sessao || salvando) return;
+    // Sessão muito longa costuma ser cronômetro esquecido: pede o tempo real em vez de gravar tudo.
+    let fim = new Date();
+    if (longa) {
+      const min = Number(minutosReais.replace(",", "."));
+      if (!Number.isFinite(min) || min <= 0) {
+        setErro("Passou de 4 h: informe quantos minutos você estudou de verdade.");
+        return;
+      }
+      fim = new Date(Date.parse(sessao.inicio) + min * 60_000);
+    }
     setSalvando(true);
     setErro(undefined);
     try {
@@ -48,7 +60,7 @@ export function SessaoAtivaWidget() {
         atividade: sessao.atividade,
         foco: sessao.foco,
         inicio: sessao.inicio,
-        fim: new Date().toISOString(),
+        fim: fim.toISOString(),
       });
       salvarSessaoAtiva(null);
     } catch (e) {
@@ -66,6 +78,18 @@ export function SessaoAtivaWidget() {
       </a>
       <p className="sessao-tempo">{formatarDuracao(restante === null ? decorrido : Math.abs(restante))}</p>
       {esgotado && <p className="suave">Tempo cumprido; já está no extra ({formatarDuracao(decorrido)} no total).</p>}
+      {longa && (
+        <div className="sessao-longa">
+          <p className="erro">Há mais de 4 h correndo. Esqueceu de parar? Informe o tempo real estudado:</p>
+          <input
+            inputMode="decimal"
+            aria-label="Minutos realmente estudados"
+            placeholder="minutos"
+            value={minutosReais}
+            onChange={(e) => setMinutosReais(e.target.value)}
+          />
+        </div>
+      )}
       <div className="sessao-botoes">
         <button onClick={() => void encerrar()} disabled={salvando}>
           {salvando ? "Salvando…" : "Encerrar e salvar"}

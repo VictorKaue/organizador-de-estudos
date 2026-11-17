@@ -15,6 +15,9 @@ export interface SessaoAtiva {
   metaSegundos?: number | null;
 }
 
+/** Acima disso a sessão é considerada suspeita (cronômetro esquecido ligado): 4 h. */
+export const LIMITE_SESSAO_LONGA_S = 4 * 3600;
+
 const CHAVE = "estudos.sessaoAtiva";
 export const EVENTO_SESSAO = "estudos:sessao";
 

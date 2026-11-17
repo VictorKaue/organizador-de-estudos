@@ -61,6 +61,7 @@ export interface NovaTentativa {
   resultado?: "acerto" | "parcial" | "erro";
   categoriaErro?: CategoriaErro | null;
   porQueErrei?: string;
+  anotacao?: string;
   chute?: boolean;
   naoSei?: boolean;
   conceitosNaoSei?: string[];
@@ -143,6 +144,23 @@ export interface InfoRelatorio {
   atualizado: number;
 }
 export interface RelatorioMd extends InfoRelatorio {
+  conteudo: string;
+}
+export interface InfoVisualizacao {
+  ctx: string;
+  mat: string;
+  nome: string;
+  titulo: string;
+  descricao: string | null;
+  topicos: string[];
+  tamanho: number;
+  atualizado: number;
+}
+export interface InfoVisualizacaoComMateria extends InfoVisualizacao {
+  materiaNome: string;
+  contextoNome: string;
+}
+export interface Visualizacao extends InfoVisualizacao {
   conteudo: string;
 }
 export interface ResultadoBusca {
@@ -271,6 +289,7 @@ export const api = {
     dados: {
       categoriaErro?: CategoriaErro | null;
       porQueErrei?: string;
+      anotacao?: string;
       dificuldadePercebida?: number | null;
       chute?: boolean;
       conceitosNaoSei?: string[];
@@ -330,10 +349,24 @@ export const api = {
   config: () => chamar<Config>("/api/config"),
   salvarConfig: (config: Config) => chamar<Config>("/api/config", enviar("PUT", config)),
 
+  sessoes: (filtro: { ctx?: string; mat?: string } = {}) => {
+    const q = new URLSearchParams();
+    if (filtro.ctx) q.set("ctx", filtro.ctx);
+    if (filtro.mat) q.set("mat", filtro.mat);
+    return chamar<Sessao[]>(`/api/sessoes${q.size ? `?${q}` : ""}`);
+  },
+  ajustarSessao: (id: string, dados: { duracaoSegundos?: number; inicio?: string; fim?: string }) =>
+    chamar<Sessao>(`/api/sessoes/${e(id)}`, enviar("PATCH", dados)),
+  removerSessao: (id: string) => chamar<{ ok: true }>(`/api/sessoes/${e(id)}`, { method: "DELETE" }),
   registrarSessao: (dados: NovaSessao) => chamar<Sessao>("/api/sessoes", enviar("POST", dados)),
   desempenho: () => chamar<ResumoDesempenho>("/api/desempenho"),
 
   relatorios: () => chamar<InfoRelatorio[]>("/api/relatorios"),
+  visualizacoes: () => chamar<InfoVisualizacaoComMateria[]>("/api/visualizacoes"),
+  visualizacoesDaMateria: (ctx: string, mat: string) =>
+    chamar<InfoVisualizacao[]>(`${baseMateria(ctx, mat)}/visualizacoes`),
+  visualizacao: (ctx: string, mat: string, nome: string) =>
+    chamar<Visualizacao>(`${baseMateria(ctx, mat)}/visualizacoes/${e(nome)}`),
   relatorio: (nome: string) => chamar<RelatorioMd>(`/api/relatorios/${e(nome)}`),
 
   buscar: (q: string) => chamar<ResultadoBusca[]>(`/api/busca?q=${e(q)}`),

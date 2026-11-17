@@ -273,6 +273,32 @@ describe("Pratica", () => {
     ).rejects.toThrow(/Tópico inexistente/);
   });
 
+  it("sessões: corrigir duração e apagar acrescentam linhas (última do id vence)", async () => {
+    const s = await pratica.registrarSessao({
+      ctx, mat, inicio: "2026-10-13T10:00:00.000Z", fim: "2026-10-14T00:00:00.000Z",
+    });
+    expect(s.duracaoSegundos).toBe(14 * 3600);
+    const ajustada = await pratica.ajustarSessao(s.id, { duracaoSegundos: 90 * 60 });
+    expect(ajustada.duracaoSegundos).toBe(90 * 60);
+    expect(ajustada.duracaoOriginalSegundos).toBe(14 * 3600);
+    expect(ajustada.fim).toBe("2026-10-13T11:30:00.000Z");
+
+    const lista = await pratica.listarSessoes();
+    expect(lista).toHaveLength(1);
+    expect(lista[0]!.duracaoSegundos).toBe(90 * 60);
+    const resumo = await gerarResumo(store, pratica);
+    expect(resumo.global.tempoEstudoSegundos.total).toBe(90 * 60);
+
+    const linhas = (await readFile(path.join(store.raiz, "progresso", "sessoes.jsonl"), "utf8")).trim().split("\n");
+    expect(linhas).toHaveLength(2);
+
+    await expect(pratica.ajustarSessao(s.id, { duracaoSegundos: 25 * 3600 })).rejects.toThrow(/24 h/);
+    await expect(pratica.ajustarSessao("nao-existe", { duracaoSegundos: 60 })).rejects.toBeInstanceOf(NaoEncontrado);
+
+    await pratica.removerSessao(s.id);
+    expect(await pratica.listarSessoes()).toHaveLength(0);
+  });
+
   it("linha corrompida no jsonl é ignorada", async () => {
     await pratica.registrarSessao({ ctx, mat, inicio: "2026-10-13T10:00:00Z", fim: "2026-10-13T10:30:00Z" });
     const arquivo = path.join(store.raiz, "progresso", "sessoes.jsonl");

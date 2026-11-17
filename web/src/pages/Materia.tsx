@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { agruparConceitos, slugify, tagSimulado, type Materia, type StatusTopico, type Topico } from "@estudos/shared";
 import { api, type DadosMateria, type InfoArquivo, type TipoConteudo } from "../api";
 import { FaixaBadge, pct } from "../components/Dominio";
@@ -10,6 +10,7 @@ import { ROTULO_TIPO } from "../components/rotulos";
 import { Segmentos } from "../components/Segmentos";
 import { SessaoCartao } from "../components/SessaoCartao";
 import { SimuladosSecao } from "../components/SimuladosSecao";
+import { ItemVisualizacao } from "./Laboratorio";
 import { nomeArquivoMd } from "../lib/markdown";
 import { href } from "../rota";
 import { useAsync } from "../useAsync";
@@ -62,6 +63,7 @@ export function PaginaMateria({ ctx, mat }: { ctx: string; mat: string }) {
   const planos = useAsync(() => api.arquivos(ctx, mat, "planos"), [ctx, mat]);
   const notas = useAsync(() => api.arquivos(ctx, mat, "notas"), [ctx, mat]);
   const docs = useAsync(() => api.docs(ctx, mat), [ctx, mat]);
+  const visualizacoes = useAsync(() => api.visualizacoesDaMateria(ctx, mat), [ctx, mat]);
   const exercicios = useAsync(() => api.exercicios(ctx, mat), [ctx, mat]);
   const conceitosNaoSei = agruparConceitos(exercicios.dados?.itens ?? []);
   const desempenho = useAsync(() => api.desempenho(), []);
@@ -91,7 +93,19 @@ export function PaginaMateria({ ctx, mat }: { ctx: string; mat: string }) {
     (desempenho.dados?.materias.find((m) => m.ctx === ctx && m.id === mat)?.topicos ?? []).map((t) => [t.id, t]),
   );
   // As questões de simulado ficam na aba própria, não na lista geral.
-  const listaExercicios = (exercicios.dados?.itens ?? []).filter((ex) => !tagSimulado(ex));
+  // Progressão: tópicos na ordem da matéria, do mais fácil ao mais difícil dentro de cada um.
+  const ordemTopico = (id: string | null) => {
+    const i = materia.topicos.findIndex((t) => t.id === id);
+    return i < 0 ? materia.topicos.length : i;
+  };
+  const listaExercicios = (exercicios.dados?.itens ?? [])
+    .filter((ex) => !tagSimulado(ex))
+    .sort(
+      (a, b) =>
+        ordemTopico(a.topico) - ordemTopico(b.topico) ||
+        a.dificuldade - b.dificuldade ||
+        a.id.localeCompare(b.id, "pt-BR", { numeric: true }),
+    );
   const nomeTopicoDe = (id: string | null) => materia.topicos.find((t) => t.id === id)?.nome ?? null;
 
   async function salvar(proxima: Materia): Promise<void> {
@@ -191,6 +205,16 @@ export function PaginaMateria({ ctx, mat }: { ctx: string; mat: string }) {
         aoImportar={(f) => importarMd("notas", f)}
       />
 
+      {(visualizacoes.dados?.length ?? 0) > 0 && (
+        <section>
+          <h2>Visualizações</h2>
+          <p className="suave">Interativas: veja o conteúdo acontecendo passo a passo.</p>
+          <ul className="arquivos">
+            {visualizacoes.dados?.map((v) => <ItemVisualizacao key={v.nome} v={v} />)}
+          </ul>
+        </section>
+      )}
+
       <Documentos ctx={ctx} mat={mat} itens={docs.dados} erro={docs.erro} aoEnviado={docs.recarregar} />
 
       <FontesSecao
@@ -209,12 +233,20 @@ export function PaginaMateria({ ctx, mat }: { ctx: string; mat: string }) {
           <p className="suave">Nenhum exercício ainda. Crie um para registrar suas tentativas.</p>
         )}
         <ul className="arquivos">
-          {listaExercicios.map((ex) => {
+          {listaExercicios.map((ex, idx) => {
             const ultima = ex.tentativas.at(-1);
             const pendentes = ex.tentativas.filter((t) => t.resultado === "pendente").length;
+            const novoTopico = idx === 0 || listaExercicios[idx - 1]!.topico !== ex.topico;
             return (
-              <li key={ex.id}>
+              <Fragment key={ex.id}>
+                {novoTopico && (
+                  <li className="suave">
+                    <strong>{nomeTopicoDe(ex.topico) ?? "Sem tópico"}</strong>
+                  </li>
+                )}
+              <li>
                 <span>
+                  <span className="suave">N{ex.dificuldade} · </span>
                   <a href={href.exercicio(ctx, mat, ex.id)}>{ex.titulo}</a>
                   {ex.tags.includes("rascunho") && (
                     <span className="selo selo-rascunho" title="Gabarito ainda não revisado">
@@ -234,6 +266,7 @@ export function PaginaMateria({ ctx, mat }: { ctx: string; mat: string }) {
                   {pendentes > 0 && ` · ${pendentes} p/ corrigir`}
                 </span>
               </li>
+              </Fragment>
             );
           })}
         </ul>

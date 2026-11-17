@@ -66,7 +66,12 @@ function AjusteTentativa({
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string>();
 
-  async function salvar(dados: { dificuldadePercebida?: number | null; chute?: boolean; conceitosNaoSei?: string[] }) {
+  async function salvar(dados: {
+    dificuldadePercebida?: number | null;
+    chute?: boolean;
+    conceitosNaoSei?: string[];
+    anotacao?: string;
+  }) {
     setSalvando(true);
     setErro(undefined);
     try {
@@ -110,6 +115,19 @@ function AjusteTentativa({
         disabled={salvando}
         aoMudar={(c) => void salvar({ conceitosNaoSei: c })}
       />
+      <label className="largo">
+        Anotação
+        <textarea
+          rows={2}
+          key={t.anotacao}
+          defaultValue={t.anotacao}
+          disabled={salvando}
+          placeholder="Livre (Markdown): o que aprendi, dúvidas, como resolver de novo"
+          onBlur={(e) => {
+            if (e.target.value !== t.anotacao) void salvar({ anotacao: e.target.value });
+          }}
+        />
+      </label>
       {erro && <span className="erro" role="alert">{erro}</span>}
     </div>
   );
@@ -175,6 +193,7 @@ function Resolver({ ctx, mat, ex, nomeContexto, nomeMateria, nomeTopico, questoe
   const [resultado, setResultado] = useState<"acerto" | "parcial" | "erro" | "">("");
   const [categoria, setCategoria] = useState<CategoriaErro | "">("");
   const [porQue, setPorQue] = useState("");
+  const [anotacao, setAnotacao] = useState("");
   const [ultima, setUltima] = useState<Tentativa | null>(null);
   const [anotado, setAnotado] = useState(false);
   const [enviando, setEnviando] = useState(false);
@@ -205,6 +224,7 @@ function Resolver({ ctx, mat, ex, nomeContexto, nomeMateria, nomeTopico, questoe
     setResultado("");
     setCategoria("");
     setPorQue("");
+    setAnotacao("");
     setUltima(null);
     setAnotado(false);
     setErro(undefined);
@@ -228,6 +248,7 @@ function Resolver({ ctx, mat, ex, nomeContexto, nomeMateria, nomeTopico, questoe
         dificuldadePercebida: percebida ? Number(percebida) : null,
         chute: extra.naoSei ? false : chute,
         conceitosNaoSei: conceitos,
+        ...(anotacao.trim() ? { anotacao } : {}),
         ...extra,
         ...((extra.resultado && extra.resultado !== "acerto") || extra.naoSei
           ? { categoriaErro: categoria || null, porQueErrei: porQue }
@@ -254,6 +275,7 @@ function Resolver({ ctx, mat, ex, nomeContexto, nomeMateria, nomeTopico, questoe
           dificuldadePercebida: percebida ? Number(percebida) : null,
           chute,
           conceitosNaoSei: conceitos,
+          anotacao,
           ...(ultima.resultado === "erro" || ultima.resultado === "parcial"
             ? { categoriaErro: categoria || null, porQueErrei: porQue }
             : {}),
@@ -465,6 +487,10 @@ function Resolver({ ctx, mat, ex, nomeContexto, nomeMateria, nomeTopico, questoe
                   aoMudarPorQue={setPorQue}
                 />
               )}
+              <label className="largo">
+                Anotação (opcional)
+                <textarea rows={2} value={anotacao} onChange={(e) => setAnotacao(e.target.value)} />
+              </label>
               <button disabled={!resultado || enviando} onClick={() => void enviar({ resultado: resultado as "acerto" })}>
                 {enviando ? "Salvando…" : "Registrar"}
               </button>
@@ -539,6 +565,18 @@ function Resolver({ ctx, mat, ex, nomeContexto, nomeMateria, nomeTopico, questoe
                 }}
               />
             )}
+            <label className="largo">
+              Anotação (livre, vale também para acertos)
+              <textarea
+                rows={3}
+                value={anotacao}
+                placeholder="Ex.: o truque que destravou; o que revisar; dúvida para perguntar"
+                onChange={(e) => {
+                  setAnotacao(e.target.value);
+                  setAnotado(false);
+                }}
+              />
+            </label>
             <button className="secundario" disabled={enviando || anotado} onClick={() => void anotar()}>
               Salvar anotação
             </button>

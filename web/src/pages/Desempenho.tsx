@@ -2,6 +2,7 @@ import type { CategoriaErro, ResumoDesempenho, ResumoTopico } from "@estudos/sha
 import { api } from "../api";
 import { BarraDominio, FaixaBadge, pct } from "../components/Dominio";
 import { ColunasSemanais, type Ponto } from "../components/ColunasSemanais";
+import { SessoesRecentes } from "../components/SessoesRecentes";
 import { ROTULO_CATEGORIA_ERRO } from "../components/rotulos";
 import { formatarHoras } from "../lib/sessao";
 import { href } from "../rota";
@@ -41,7 +42,16 @@ export function PaginaDesempenho() {
   const carga = useAsync(() => api.desempenho(), []);
   if (carga.erro) return <p className="erro" role="alert">{carga.erro}</p>;
   if (!carga.dados) return <p className="suave">Carregando…</p>;
-  return <Conteudo r={carga.dados} />;
+  return (
+    <>
+      <Conteudo r={carga.dados} />
+      <section>
+        <h2>Sessões de estudo</h2>
+        <p className="suave">Esqueceu o cronômetro ligado? Corrija o tempo aqui; os totais são recalculados.</p>
+        <SessoesRecentes aoMudar={carga.recarregar} limite={10} />
+      </section>
+    </>
+  );
 }
 
 function Conteudo({ r }: { r: ResumoDesempenho }) {

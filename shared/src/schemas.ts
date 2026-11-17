@@ -154,6 +154,8 @@ export const tentativaSchema = z.object({
   dificuldadePercebida: z.number().int().min(1).max(5).nullable().default(null),
   categoriaErro: categoriaErroSchema.nullable().default(null),
   porQueErrei: z.string().default(""),
+  /** Anotação livre (Markdown) do aluno, em qualquer resultado (acerto, parcial ou erro). */
+  anotacao: z.string().default(""),
   /** Respondeu sem saber (acertando ou errando): um acerto assim não mede domínio. */
   chute: z.boolean().default(false),
   /** O aluno declarou "não sei responder": conta como erro, sem tentar adivinhar. */
@@ -204,6 +206,10 @@ export const sessaoSchema = z.object({
   inicio: z.string().min(1),
   fim: z.string().min(1),
   duracaoSegundos: z.number().int().min(1),
+  /** Preenchido quando a duração foi corrigida depois: a duração registrada originalmente. */
+  duracaoOriginalSegundos: z.number().int().min(1).optional(),
+  /** Linha de correção que apaga a sessão (a última linha de um `id` vence). */
+  removida: z.boolean().optional(),
 });
 export type Sessao = z.infer<typeof sessaoSchema>;
 
@@ -339,6 +345,7 @@ export const novaTentativaSchema = z.object({
   nota: z.number().min(0).max(1).nullable().optional(),
   categoriaErro: categoriaErroSchema.nullable().optional(),
   porQueErrei: z.string().optional(),
+  anotacao: z.string().optional(),
   chute: z.boolean().optional(),
   naoSei: z.boolean().optional(),
   conceitosNaoSei: z.array(z.string().max(120)).max(30).optional(),
@@ -346,6 +353,7 @@ export const novaTentativaSchema = z.object({
 export const anotaTentativaSchema = z.object({
   categoriaErro: categoriaErroSchema.nullable().optional(),
   porQueErrei: z.string().optional(),
+  anotacao: z.string().optional(),
   dificuldadePercebida: z.number().int().min(1).max(5).nullable().optional(),
   chute: z.boolean().optional(),
   conceitosNaoSei: z.array(z.string().max(120)).max(30).optional(),
@@ -359,6 +367,13 @@ export const novaSessaoSchema = z.object({
   foco: z.string().max(200).optional(),
   inicio: z.string().min(1),
   fim: z.string().min(1),
+});
+
+/** Corrige uma sessão já registrada: nova duração (em segundos, a partir do início) ou novo início/fim. */
+export const ajustaSessaoSchema = z.object({
+  duracaoSegundos: z.number().int().min(1).optional(),
+  inicio: z.string().min(1).optional(),
+  fim: z.string().min(1).optional(),
 });
 
 export const novoCartaoSchema = z.object({

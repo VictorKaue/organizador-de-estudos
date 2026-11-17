@@ -15,6 +15,7 @@ import {
   novaDisponibilidadeSchema,
   novaMateriaSchema,
   novaRevisaoSchema,
+  ajustaSessaoSchema,
   novaSessaoSchema,
   novaTentativaSchema,
   novoBlocoSchema,
@@ -39,6 +40,7 @@ import {
 import { Observador } from "./observador";
 import { Pratica } from "./pratica";
 import { Relatorios } from "./relatorios";
+import { Visualizacoes } from "./visualizacoes";
 import { gerarResumo } from "./resumo";
 import { KindleDesconectado, ServicoKindle, type FormatoKindle, type PastaOrigem } from "./kindle";
 import { Indice } from "./search";
@@ -106,6 +108,7 @@ export function criarApp(store: Store, opcoes: OpcoesApp = {}): Hono {
   const flashcards = new Flashcards(store);
   const agenda = new Agenda(store);
   const relatorios = new Relatorios(store);
+  const visualizacoes = new Visualizacoes(store);
   const kindle = opcoes.kindle ?? new ServicoKindle(store);
   observador.ouvir(() => indice.invalidar());
 
@@ -337,6 +340,14 @@ export function criarApp(store: Store, opcoes: OpcoesApp = {}): Hono {
     const corpo = novaSessaoSchema.parse(await c.req.json());
     return c.json(await pratica.registrarSessao(corpo), 201);
   });
+  api.patch("/sessoes/:id", async (c) => {
+    const corpo = ajustaSessaoSchema.parse(await c.req.json());
+    return c.json(await pratica.ajustarSessao(c.req.param("id"), corpo));
+  });
+  api.delete("/sessoes/:id", async (c) => {
+    await pratica.removerSessao(c.req.param("id"));
+    return c.json({ ok: true });
+  });
   api.get("/desempenho", async (c) => c.json(await gerarResumo(store, pratica, new Date(), flashcards)));
 
   // Documentos (PDFs, imagens...)
@@ -416,6 +427,14 @@ export function criarApp(store: Store, opcoes: OpcoesApp = {}): Hono {
   });
 
   // Relatórios da IA (somente leitura: quem escreve é o Claude Code)
+  api.get("/visualizacoes", async (c) => c.json(await visualizacoes.listarTodas()));
+  api.get(`${base}/visualizacoes`, async (c) =>
+    c.json(await visualizacoes.listar(c.req.param("ctx"), c.req.param("mat"))),
+  );
+  api.get(`${base}/visualizacoes/:nome`, async (c) =>
+    c.json(await visualizacoes.ler(c.req.param("ctx"), c.req.param("mat"), c.req.param("nome"))),
+  );
+
   api.get("/relatorios", async (c) => c.json(await relatorios.listar()));
   api.get("/relatorios/:nome", async (c) => c.json(await relatorios.ler(c.req.param("nome"))));
 
